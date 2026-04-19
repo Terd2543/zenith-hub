@@ -37,7 +37,7 @@ if WindUI then
     Window =
         WindUI:CreateWindow(
         {
-            Title = "MYSTIC HUB  |  Block Spin 🔫| Paid 💸",
+            Title = "ZENITH HUB  |  Block Spin 🔫| FREE💸",
             Icon = "list",
             Author = "HI! I'M KUNGHE I'M COOL :)",
             Folder = "MYSTIC HUB Now!!!",
