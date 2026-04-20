@@ -1,5 +1,3 @@
--- Zenith Hub พร้อมระบบ Anti Kill (ป้องกันการตาย)
--- เพิ่มระบบ Anti Kill: เมื่อเลือดต่ำกว่า 30 จะดึงตัวลงใต้พื้นจนกว่าเลือดจะกลับมาสูงกว่า 30
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -109,16 +107,12 @@ local excludedPlayerNames = {}
 
 local walkSpeedEnabled = false
 local speedValue = 0.05
-local FlyEnabled = false
-local isFlyingUp = false
-local floatPower = 40
 local teleportActive = false
 local featureEnabled = false
 local lockedY = nil
 local maxHeight = 10
 local startY = nil
 local moveConnection = nil
-local flyJumpConnection = nil
 local hookEnabled = state
 local clickCount = 0
 local fastFinishEnabled = false
@@ -225,7 +219,88 @@ end
 
 -- เชื่อมต่อกับ Heartbeat เพื่อตรวจสอบสุขภาพตลอดเวลา
 RunService.Heartbeat:Connect(checkHealthAndAct)
--- ========== จบระบบ Anti Kill ==========
+
+-- ========== ระบบ Fly / Jump Power (รองรับทุกอุปกรณ์) ==========
+local flyEnabled = false          -- เปิด/ปิดโหมดบิน
+local flyingUp = false            -- กำลังบินขึ้นหรือไม่
+local flySpeed = 40               -- ความเร็วในการบิน (ปรับได้)
+local flyRenderConn = nil         -- สำหรับเชื่อมต่อ RenderStepped
+
+-- ฟังก์ชันเริ่มบิน
+local function startFlying()
+    if not flyEnabled then return end
+    flyingUp = true
+    local char = LocalPlayer.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end
+
+-- ฟังก์ชันหยุดบิน
+local function stopFlying()
+    flyingUp = false
+end
+
+-- ตรวจจับการกด Space (PC) หรือแตะปุ่ม Jump (มือถือ)
+local function onJumpRequest()
+    if flyEnabled then
+        startFlying()
+    end
+end
+
+-- ตรวจจับการกดปุ่ม (PC) หรือแตะหน้าจอ (มือถือ) เริ่มบิน
+local function onInputBegan(input, gameProcessed)
+    if gameProcessed then return end
+    if flyEnabled then
+        if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
+            startFlying()
+        end
+    end
+end
+
+-- ตรวจจับการปล่อยปุ่ม/นิ้ว หยุดบิน
+local function onInputEnded(input, gameProcessed)
+    if gameProcessed then return end
+    if flyEnabled then
+        if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
+            stopFlying()
+        end
+    end
+end
+
+-- เชื่อมต่อกับ RenderStepped เพื่อปรับ Velocity ขณะบิน
+local function setupFlyRender()
+    if flyRenderConn then flyRenderConn:Disconnect() end
+    flyRenderConn = RunService.RenderStepped:Connect(function()
+        if flyEnabled and flyingUp then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                local vel = hrp.AssemblyLinearVelocity
+                hrp.AssemblyLinearVelocity = Vector3.new(vel.X, flySpeed, vel.Z)
+            end
+        end
+    end)
+end
+
+-- ฟังก์ชันเปิด/ปิดโหมดบิน (ใช้กับ GUI Toggle)
+local function toggleFlyMode(state)
+    flyEnabled = state
+    if not state then
+        flyingUp = false
+    end
+    if state then
+        setupFlyRender()
+    end
+end
+
+-- เริ่มต้นระบบ (เชื่อมต่อ Events)
+setupFlyRender()
+UserInputService.JumpRequest:Connect(onJumpRequest)
+UserInputService.InputBegan:Connect(onInputBegan)
+UserInputService.InputEnded:Connect(onInputEnded)
+
+-- ========== จบระบบ Fly ==========
 
 local RARITY_COLORS = {
     ["Common"] = Color3.fromRGB(255, 255, 255),
@@ -1798,11 +1873,6 @@ RunService.RenderStepped:Connect(
                     TracerSmoothedPos = Vector3.new()
                 end
 
-
-                if FlyEnabled and isFlyingUp and HumanoidRootPart then
-                    local v = HumanoidRootPart.Velocity
-                    HumanoidRootPart.Velocity = Vector3.new(v.X, floatPower, v.Z)
-                end
                 if teleportActive and lockedY and HumanoidRootPart then
                     local currentPos = HumanoidRootPart.Position
                     if math.abs(currentPos.Y - lockedY) > 0.1 then
@@ -1868,61 +1938,6 @@ RunService.Heartbeat:Connect(
             HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
         end
         pcall(CheckAndPickup)
-    end
-)
-
-ContextActionService:BindAction(
-    "FlyUp",
-    function(actionName, inputState, inputObject)
-        if not FlyEnabled then
-            return Enum.ContextActionResult.Pass
-        end
-        local isJumpPressed = false
-        if inputObject.UserInputType == Enum.UserInputType.Keyboard and inputObject.KeyCode == Enum.KeyCode.Space then
-            isJumpPressed = true
-        end
-        if inputObject.UserInputType == Enum.UserInputType.Touch then
-            isJumpPressed = true
-        end
-        if isJumpPressed then
-            if inputState == Enum.UserInputState.Begin then
-                isFlyingUp = true
-                Humanoid.Jump = true
-                return Enum.ContextActionResult.Sink
-            elseif inputState == Enum.UserInputState.End then
-                isFlyingUp = false
-                return Enum.ContextActionResult.Sink
-            end
-        end
-        return Enum.ContextActionResult.Pass
-    end,
-    false,
-    Enum.KeyCode.Space
-)
-RunService.RenderStepped:Connect(
-    function(deltaTime)
-        if FlyEnabled and isFlyingUp then
-            HumanoidRootPart.Velocity =
-                Vector3.new(HumanoidRootPart.Velocity.X, floatPower, HumanoidRootPart.Velocity.Z)
-        end
-    end
-)
-LocalPlayer.CharacterAdded:Connect(
-    function(char)
-        local hum = char:WaitForChild("Humanoid")
-        if flyJumpConnection then
-            flyJumpConnection:Disconnect()
-        end
-        flyJumpConnection =
-            hum:GetPropertyChangedSignal("Jumping"):Connect(
-            function()
-                if FlyEnabled and hum.Jumping then
-                    isFlyingUp = true
-                else
-                    isFlyingUp = false
-                end
-            end
-        )
     end
 )
 
@@ -2663,20 +2678,37 @@ local SpeedSlider =
     }
 )
 myConfig:Register("SpeedMultiplier", SpeedSlider)
-local JumpPowerToggle =
+
+-- แทนที่ Jump Power Toggle ด้วยระบบ Fly ใหม่
+local FlyToggle =
     Tab_Character:Toggle(
     {
-        Title = "Jump Power",
+        Title = "Fly / Jump Power",
         Default = false,
         Callback = function(state)
-            FlyEnabled = state
-            if not FlyEnabled then
-                flying = false
-            end
+            toggleFlyMode(state)
         end
     }
 )
-myConfig:Register("JumpPower", JumpPowerToggle)
+myConfig:Register("FlyMode", FlyToggle)
+
+-- เพิ่ม Slider ปรับความเร็วบิน
+local FlySpeedSlider =
+    Tab_Character:Slider(
+    {
+        Title = "Fly Speed",
+        Step = 5,
+        Value = {
+            Min = 20,
+            Max = 120,
+            Default = 40
+        },
+        Callback = function(value)
+            flySpeed = value
+        end
+    }
+)
+myConfig:Register("FlySpeed", FlySpeedSlider)
 
 local Net = {}
 function Net.send(...)
@@ -2810,7 +2842,7 @@ local AntiLockToggle =
 )
 myConfig:Register("AntiLock", AntiLockToggle)
 
--- แก้ไขปุ่ม Anti Kill ให้ใช้ antiKillEnabled
+-- ปุ่ม Anti Kill
 local AntiKillToggle =
     Tab_Character:Toggle(
     {
@@ -2819,7 +2851,7 @@ local AntiKillToggle =
         Callback = function(state)
             antiKillEnabled = state
             if not state then
-                exitSafeMode()  -- เมื่อปิดระบบ ให้กลับขึ้นพื้นทันที
+                exitSafeMode()
             end
             if state then
                 if WindUI then
@@ -3768,3 +3800,5 @@ Players.PlayerRemoving:Connect(
         end
     end
 )
+
+print("Zenith Hub พร้อมใช้งานแล้ว! กด G เพื่อเปิดเมนู")
