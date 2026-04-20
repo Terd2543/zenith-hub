@@ -1,4 +1,3 @@
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -38,9 +37,9 @@ if WindUI then
     Window =
         WindUI:CreateWindow(
         {
-            Title = "ZENITH HUB",
+            Title = "ZENITH HUB  |  Block Spin 🔫| FREE💸",
             Icon = "list",
-            Author = "By YugiDev",
+            Author = "HI! I'M KUNGHE I'M COOL :)",
             Folder = "MYSTIC HUB Now!!!",
             Size = UDim2.fromOffset(650, 400),
             Theme = "Dark",
@@ -52,7 +51,7 @@ if WindUI then
 
     Window:Tag(
         {
-            Title = "v1.0",
+            Title = "v5.6",
             Color = Color3.fromHex("#30ff6a"),
             Radius = 12
         }
@@ -107,12 +106,16 @@ local excludedPlayerNames = {}
 
 local walkSpeedEnabled = false
 local speedValue = 0.05
+local FlyEnabled = false
+local isFlyingUp = false
+local floatPower = 40
 local teleportActive = false
 local featureEnabled = false
 local lockedY = nil
 local maxHeight = 10
 local startY = nil
 local moveConnection = nil
+local flyJumpConnection = nil
 local hookEnabled = state
 local clickCount = 0
 local fastFinishEnabled = false
@@ -141,166 +144,6 @@ local scanRadius = 20
 local localEventCounter = 0
 local localFuncCounter = 0
 local AutoSprintEnabled = false
-
--- ========== ระบบ Anti Kill (ป้องกันการตาย) ==========
-local antiKillEnabled = false       -- เปิด/ปิดระบบ
-local antiKillActive = false        -- กำลังอยู่ในโหมดปลอดภัย
-local antiKillLoopRunning = false   -- ป้องกันการทำงานซ้ำซ้อน
-local SAFE_DEPTH = 20               -- ความลึกใต้พื้น (20 สตั๊ด)
-
--- หาความสูงของพื้นตรงตำแหน่งที่กำหนด
-local function findGroundHeight(pos)
-    local ray = Ray.new(pos + Vector3.new(0, 20, 0), Vector3.new(0, -50, 0))
-    local hit, hitPos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character})
-    return hit and hitPos.Y or pos.Y - SAFE_DEPTH
-end
-
--- เข้าสู่โหมดปลอดภัย (ดึงตัวลงใต้พื้น)
-local function enterSafeMode()
-    if antiKillLoopRunning then return end
-    antiKillLoopRunning = true
-    antiKillActive = true
-    task.spawn(function()
-        while antiKillLoopRunning and antiKillEnabled do
-            local char = LocalPlayer.Character
-            if not char then task.wait(0.1) continue end
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            local humanoid = char:FindFirstChild("Humanoid")
-            if not hrp or not humanoid then task.wait(0.1) continue end
-            
-            -- ถ้าเลือดกลับมาสูงกว่า 30 ให้ออกจากโหมดปลอดภัย
-            if humanoid.Health >= 30 then
-                antiKillLoopRunning = false
-                antiKillActive = false
-                local groundY = findGroundHeight(hrp.Position)
-                pcall(function() hrp.CFrame = CFrame.new(hrp.Position.X, groundY + 2, hrp.Position.Z) end)
-                break
-            end
-            
-            -- ดึงตัวลงใต้พื้น
-            local groundY = findGroundHeight(hrp.Position)
-            local targetY = groundY - SAFE_DEPTH
-            pcall(function() hrp.CFrame = CFrame.new(hrp.Position.X, targetY, hrp.Position.Z) end)
-            task.wait(0.05)
-        end
-        antiKillLoopRunning = false
-        antiKillActive = false
-    end)
-end
-
--- ออกจากโหมดปลอดภัย (กลับขึ้นพื้น)
-local function exitSafeMode()
-    antiKillLoopRunning = false
-    antiKillActive = false
-    local char = LocalPlayer.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local groundY = findGroundHeight(hrp.Position)
-    pcall(function() hrp.CFrame = CFrame.new(hrp.Position.X, groundY + 2, hrp.Position.Z) end)
-end
-
--- ตรวจสอบเลือดทุก 0.1 วินาที และเรียกใช้ระบบเมื่อเลือดต่ำกว่า 30
-local _lastHealthCheck = 0
-local function checkHealthAndAct()
-    if not antiKillEnabled then return end
-    local now = tick()
-    if now - _lastHealthCheck < 0.1 then return end
-    _lastHealthCheck = now
-    local char = LocalPlayer.Character
-    if not char then return end
-    local humanoid = char:FindFirstChild("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
-    local currentHealth = humanoid.Health
-    if currentHealth < 30 and currentHealth > 0 and not antiKillActive then
-        enterSafeMode()
-    end
-end
-
--- เชื่อมต่อกับ Heartbeat เพื่อตรวจสอบสุขภาพตลอดเวลา
-RunService.Heartbeat:Connect(checkHealthAndAct)
-
--- ========== ระบบ Fly / Jump Power (รองรับทุกอุปกรณ์) ==========
-local flyEnabled = false          -- เปิด/ปิดโหมดบิน
-local flyingUp = false            -- กำลังบินขึ้นหรือไม่
-local flySpeed = 40               -- ความเร็วในการบิน (ปรับได้)
-local flyRenderConn = nil         -- สำหรับเชื่อมต่อ RenderStepped
-
--- ฟังก์ชันเริ่มบิน
-local function startFlying()
-    if not flyEnabled then return end
-    flyingUp = true
-    local char = LocalPlayer.Character
-    if char and char:FindFirstChild("Humanoid") then
-        char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end
-
--- ฟังก์ชันหยุดบิน
-local function stopFlying()
-    flyingUp = false
-end
-
--- ตรวจจับการกด Space (PC) หรือแตะปุ่ม Jump (มือถือ)
-local function onJumpRequest()
-    if flyEnabled then
-        startFlying()
-    end
-end
-
--- ตรวจจับการกดปุ่ม (PC) หรือแตะหน้าจอ (มือถือ) เริ่มบิน
-local function onInputBegan(input, gameProcessed)
-    if gameProcessed then return end
-    if flyEnabled then
-        if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
-            startFlying()
-        end
-    end
-end
-
--- ตรวจจับการปล่อยปุ่ม/นิ้ว หยุดบิน
-local function onInputEnded(input, gameProcessed)
-    if gameProcessed then return end
-    if flyEnabled then
-        if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
-            stopFlying()
-        end
-    end
-end
-
--- เชื่อมต่อกับ RenderStepped เพื่อปรับ Velocity ขณะบิน
-local function setupFlyRender()
-    if flyRenderConn then flyRenderConn:Disconnect() end
-    flyRenderConn = RunService.RenderStepped:Connect(function()
-        if flyEnabled and flyingUp then
-            local char = LocalPlayer.Character
-            if char and char:FindFirstChild("HumanoidRootPart") then
-                local hrp = char.HumanoidRootPart
-                local vel = hrp.AssemblyLinearVelocity
-                hrp.AssemblyLinearVelocity = Vector3.new(vel.X, flySpeed, vel.Z)
-            end
-        end
-    end)
-end
-
--- ฟังก์ชันเปิด/ปิดโหมดบิน (ใช้กับ GUI Toggle)
-local function toggleFlyMode(state)
-    flyEnabled = state
-    if not state then
-        flyingUp = false
-    end
-    if state then
-        setupFlyRender()
-    end
-end
-
--- เริ่มต้นระบบ (เชื่อมต่อ Events)
-setupFlyRender()
-UserInputService.JumpRequest:Connect(onJumpRequest)
-UserInputService.InputBegan:Connect(onInputBegan)
-UserInputService.InputEnded:Connect(onInputEnded)
-
--- ========== จบระบบ Fly ==========
 
 local RARITY_COLORS = {
     ["Common"] = Color3.fromRGB(255, 255, 255),
@@ -1873,6 +1716,11 @@ RunService.RenderStepped:Connect(
                     TracerSmoothedPos = Vector3.new()
                 end
 
+
+                if FlyEnabled and isFlyingUp and HumanoidRootPart then
+                    local v = HumanoidRootPart.Velocity
+                    HumanoidRootPart.Velocity = Vector3.new(v.X, floatPower, v.Z)
+                end
                 if teleportActive and lockedY and HumanoidRootPart then
                     local currentPos = HumanoidRootPart.Position
                     if math.abs(currentPos.Y - lockedY) > 0.1 then
@@ -1938,6 +1786,61 @@ RunService.Heartbeat:Connect(
             HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
         end
         pcall(CheckAndPickup)
+    end
+)
+
+ContextActionService:BindAction(
+    "FlyUp",
+    function(actionName, inputState, inputObject)
+        if not FlyEnabled then
+            return Enum.ContextActionResult.Pass
+        end
+        local isJumpPressed = false
+        if inputObject.UserInputType == Enum.UserInputType.Keyboard and inputObject.KeyCode == Enum.KeyCode.Space then
+            isJumpPressed = true
+        end
+        if inputObject.UserInputType == Enum.UserInputType.Touch then
+            isJumpPressed = true
+        end
+        if isJumpPressed then
+            if inputState == Enum.UserInputState.Begin then
+                isFlyingUp = true
+                Humanoid.Jump = true
+                return Enum.ContextActionResult.Sink
+            elseif inputState == Enum.UserInputState.End then
+                isFlyingUp = false
+                return Enum.ContextActionResult.Sink
+            end
+        end
+        return Enum.ContextActionResult.Pass
+    end,
+    false,
+    Enum.KeyCode.Space
+)
+RunService.RenderStepped:Connect(
+    function(deltaTime)
+        if FlyEnabled and isFlyingUp then
+            HumanoidRootPart.Velocity =
+                Vector3.new(HumanoidRootPart.Velocity.X, floatPower, HumanoidRootPart.Velocity.Z)
+        end
+    end
+)
+LocalPlayer.CharacterAdded:Connect(
+    function(char)
+        local hum = char:WaitForChild("Humanoid")
+        if flyJumpConnection then
+            flyJumpConnection:Disconnect()
+        end
+        flyJumpConnection =
+            hum:GetPropertyChangedSignal("Jumping"):Connect(
+            function()
+                if FlyEnabled and hum.Jumping then
+                    isFlyingUp = true
+                else
+                    isFlyingUp = false
+                end
+            end
+        )
     end
 )
 
@@ -2678,37 +2581,20 @@ local SpeedSlider =
     }
 )
 myConfig:Register("SpeedMultiplier", SpeedSlider)
-
--- แทนที่ Jump Power Toggle ด้วยระบบ Fly ใหม่
-local FlyToggle =
+local JumpPowerToggle =
     Tab_Character:Toggle(
     {
-        Title = "Fly / Jump Power",
+        Title = "Jump Power",
         Default = false,
         Callback = function(state)
-            toggleFlyMode(state)
+            FlyEnabled = state
+            if not FlyEnabled then
+                flying = false
+            end
         end
     }
 )
-myConfig:Register("FlyMode", FlyToggle)
-
--- เพิ่ม Slider ปรับความเร็วบิน
-local FlySpeedSlider =
-    Tab_Character:Slider(
-    {
-        Title = "Fly Speed",
-        Step = 5,
-        Value = {
-            Min = 20,
-            Max = 120,
-            Default = 40
-        },
-        Callback = function(value)
-            flySpeed = value
-        end
-    }
-)
-myConfig:Register("FlySpeed", FlySpeedSlider)
+myConfig:Register("JumpPower", JumpPowerToggle)
 
 local Net = {}
 function Net.send(...)
@@ -2841,23 +2727,18 @@ local AntiLockToggle =
     }
 )
 myConfig:Register("AntiLock", AntiLockToggle)
-
--- ปุ่ม Anti Kill
 local AntiKillToggle =
     Tab_Character:Toggle(
     {
         Title = "Anti Kill",
         Default = false,
         Callback = function(state)
-            antiKillEnabled = state
-            if not state then
-                exitSafeMode()
-            end
+            enabled = state
             if state then
                 if WindUI then
                     WindUI:Notify(
                         {
-                            Title = "✅ Anti Kill Enabled",
+                            Title = " Anti Kill Enabled",
                             Duration = 3
                         }
                     )
@@ -2876,7 +2757,6 @@ local AntiKillToggle =
     }
 )
 myConfig:Register("AntiKill", AntiKillToggle)
-
 pcall(
     function()
         if Tab_Character and typeof(Tab_Character.Divider) == "function" then
@@ -3800,5 +3680,3 @@ Players.PlayerRemoving:Connect(
         end
     end
 )
-
-print("Zenith Hub พร้อมใช้งานแล้ว! กด G เพื่อเปิดเมนู")
