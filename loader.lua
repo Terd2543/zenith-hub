@@ -1,3 +1,6 @@
+-- Zenith Hub พร้อมระบบ Anti Kill (ป้องกันการตาย)
+-- เพิ่มระบบ Anti Kill: เมื่อเลือดต่ำกว่า 30 จะดึงตัวลงใต้พื้นจนกว่าเลือดจะกลับมาสูงกว่า 30
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -37,9 +40,9 @@ if WindUI then
     Window =
         WindUI:CreateWindow(
         {
-            Title = "ZENITH HUB  |  Block Spin 🔫| FREE💸",
+            Title = "ZENITH HUB",
             Icon = "list",
-            Author = "HI! I'M KUNGHE I'M COOL :)",
+            Author = "By YugiDev",
             Folder = "MYSTIC HUB Now!!!",
             Size = UDim2.fromOffset(650, 400),
             Theme = "Dark",
@@ -51,7 +54,7 @@ if WindUI then
 
     Window:Tag(
         {
-            Title = "v5.6",
+            Title = "v1.0",
             Color = Color3.fromHex("#30ff6a"),
             Radius = 12
         }
@@ -144,6 +147,85 @@ local scanRadius = 20
 local localEventCounter = 0
 local localFuncCounter = 0
 local AutoSprintEnabled = false
+
+-- ========== ระบบ Anti Kill (ป้องกันการตาย) ==========
+local antiKillEnabled = false       -- เปิด/ปิดระบบ
+local antiKillActive = false        -- กำลังอยู่ในโหมดปลอดภัย
+local antiKillLoopRunning = false   -- ป้องกันการทำงานซ้ำซ้อน
+local SAFE_DEPTH = 20               -- ความลึกใต้พื้น (20 สตั๊ด)
+
+-- หาความสูงของพื้นตรงตำแหน่งที่กำหนด
+local function findGroundHeight(pos)
+    local ray = Ray.new(pos + Vector3.new(0, 20, 0), Vector3.new(0, -50, 0))
+    local hit, hitPos = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character})
+    return hit and hitPos.Y or pos.Y - SAFE_DEPTH
+end
+
+-- เข้าสู่โหมดปลอดภัย (ดึงตัวลงใต้พื้น)
+local function enterSafeMode()
+    if antiKillLoopRunning then return end
+    antiKillLoopRunning = true
+    antiKillActive = true
+    task.spawn(function()
+        while antiKillLoopRunning and antiKillEnabled do
+            local char = LocalPlayer.Character
+            if not char then task.wait(0.1) continue end
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local humanoid = char:FindFirstChild("Humanoid")
+            if not hrp or not humanoid then task.wait(0.1) continue end
+            
+            -- ถ้าเลือดกลับมาสูงกว่า 30 ให้ออกจากโหมดปลอดภัย
+            if humanoid.Health >= 30 then
+                antiKillLoopRunning = false
+                antiKillActive = false
+                local groundY = findGroundHeight(hrp.Position)
+                pcall(function() hrp.CFrame = CFrame.new(hrp.Position.X, groundY + 2, hrp.Position.Z) end)
+                break
+            end
+            
+            -- ดึงตัวลงใต้พื้น
+            local groundY = findGroundHeight(hrp.Position)
+            local targetY = groundY - SAFE_DEPTH
+            pcall(function() hrp.CFrame = CFrame.new(hrp.Position.X, targetY, hrp.Position.Z) end)
+            task.wait(0.05)
+        end
+        antiKillLoopRunning = false
+        antiKillActive = false
+    end)
+end
+
+-- ออกจากโหมดปลอดภัย (กลับขึ้นพื้น)
+local function exitSafeMode()
+    antiKillLoopRunning = false
+    antiKillActive = false
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local groundY = findGroundHeight(hrp.Position)
+    pcall(function() hrp.CFrame = CFrame.new(hrp.Position.X, groundY + 2, hrp.Position.Z) end)
+end
+
+-- ตรวจสอบเลือดทุก 0.1 วินาที และเรียกใช้ระบบเมื่อเลือดต่ำกว่า 30
+local _lastHealthCheck = 0
+local function checkHealthAndAct()
+    if not antiKillEnabled then return end
+    local now = tick()
+    if now - _lastHealthCheck < 0.1 then return end
+    _lastHealthCheck = now
+    local char = LocalPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    local currentHealth = humanoid.Health
+    if currentHealth < 30 and currentHealth > 0 and not antiKillActive then
+        enterSafeMode()
+    end
+end
+
+-- เชื่อมต่อกับ Heartbeat เพื่อตรวจสอบสุขภาพตลอดเวลา
+RunService.Heartbeat:Connect(checkHealthAndAct)
+-- ========== จบระบบ Anti Kill ==========
 
 local RARITY_COLORS = {
     ["Common"] = Color3.fromRGB(255, 255, 255),
@@ -2727,18 +2809,23 @@ local AntiLockToggle =
     }
 )
 myConfig:Register("AntiLock", AntiLockToggle)
+
+-- แก้ไขปุ่ม Anti Kill ให้ใช้ antiKillEnabled
 local AntiKillToggle =
     Tab_Character:Toggle(
     {
         Title = "Anti Kill",
         Default = false,
         Callback = function(state)
-            enabled = state
+            antiKillEnabled = state
+            if not state then
+                exitSafeMode()  -- เมื่อปิดระบบ ให้กลับขึ้นพื้นทันที
+            end
             if state then
                 if WindUI then
                     WindUI:Notify(
                         {
-                            Title = " Anti Kill Enabled",
+                            Title = "✅ Anti Kill Enabled",
                             Duration = 3
                         }
                     )
@@ -2757,6 +2844,7 @@ local AntiKillToggle =
     }
 )
 myConfig:Register("AntiKill", AntiKillToggle)
+
 pcall(
     function()
         if Tab_Character and typeof(Tab_Character.Divider) == "function" then
