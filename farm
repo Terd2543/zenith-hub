@@ -1,0 +1,1059 @@
+สคิปฟาม -- ==========================================
+-- [[ PIG HUB LOADING SCREEN ]]
+-- ==========================================
+
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+local DownloadGui = Instance.new("ScreenGui")
+DownloadGui.Name = "PigHubLoad"
+DownloadGui.Parent = CoreGui
+DownloadGui.ResetOnSpawn = false
+DownloadGui.IgnoreGuiInset = true
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(1, 0, 1, 0)
+MainFrame.BackgroundTransparency = 1
+MainFrame.Parent = DownloadGui
+
+local CharImage = Instance.new("ImageLabel")
+CharImage.Size = UDim2.new(0, 300, 0, 300)
+CharImage.Position = UDim2.new(0.5, -150, 0.5, -170)
+CharImage.BackgroundTransparency = 1
+CharImage.Image = "rbxassetid://117924028123190"
+CharImage.ImageTransparency = 1
+CharImage.Parent = MainFrame
+
+local CampName = Instance.new("TextLabel")
+CampName.Size = UDim2.new(1, 0, 0, 70)
+CampName.Position = UDim2.new(0, 0, 0.5, 140)
+CampName.BackgroundTransparency = 1
+CampName.Text = "PIG HUB"
+CampName.TextColor3 = Color3.fromRGB(0, 200, 255)
+CampName.TextScaled = true
+CampName.Font = Enum.Font.GothamBold
+CampName.TextTransparency = 1
+CampName.Parent = MainFrame
+
+local Gradient = Instance.new("UIGradient")
+Gradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 150, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(100, 200, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 150, 255))
+})
+Gradient.Rotation = 45
+Gradient.Parent = CampName
+
+task.spawn(function()
+    local fadeInImage = TweenService:Create(CharImage, TweenInfo.new(1.5), {ImageTransparency = 0})
+    fadeInImage:Play()
+    fadeInImage.Completed:Wait()
+    task.wait(0.5)
+
+    local fadeInText = TweenService:Create(CampName, TweenInfo.new(2), {TextTransparency = 0})
+    fadeInText:Play()
+
+    local angle = 45
+    while CampName.TextTransparency < 0.1 do
+        angle = (angle + 1) % 360
+        Gradient.Rotation = angle
+        task.wait(0.03)
+    end
+
+    fadeInText.Completed:Wait()
+    task.wait(2)
+
+    local fadeOutImage = TweenService:Create(CharImage, TweenInfo.new(1), {ImageTransparency = 1})
+    local fadeOutText = TweenService:Create(CampName, TweenInfo.new(1), {TextTransparency = 1})
+    fadeOutImage:Play()
+    fadeOutText:Play()
+    fadeOutImage.Completed:Wait()
+
+    DownloadGui:Destroy()
+end)
+
+repeat task.wait() until not CoreGui:FindFirstChild("PigHubLoad")
+
+-- ==========================================
+-- [[ SERVICES AND GLOBAL SETUP ]]
+-- ==========================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- ========== ระบบ Bypass กันแบน (ปรับปรุงให้เข้ากับสคริปต์หลัก) ==========
+local bypassLoaded = false
+local function setupBypass()
+    if bypassLoaded then return end
+    bypassLoaded = true
+
+    -- รอให้โมดูลหลักโหลด
+    local success, Modules = pcall(function()
+        return ReplicatedStorage:WaitForChild("Modules", 5)
+    end)
+    if not success then
+        warn("Bypass: ไม่พบ Modules ใน ReplicatedStorage")
+        return
+    end
+
+    -- ปิดเสียงเตือน "IS ALREADY BEING LISTENED TO"
+    local function silenceListenWarnings()
+        local character = LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid and not humanoid:FindFirstChild("silence_listen_warning") then
+                local silence = Instance.new("BoolValue")
+                silence.Name = "silence_listen_warning"
+                silence.Parent = humanoid
+            end
+            local animController = character:FindFirstChildOfClass("AnimationController")
+            if animController and not animController:FindFirstChild("silence_listen_warning") then
+                local silence = Instance.new("BoolValue")
+                silence.Name = "silence_listen_warning"
+                silence.Parent = animController
+            end
+        end
+    end
+    silenceListenWarnings()
+    LocalPlayer.CharacterAdded:Connect(silenceListenWarnings)
+
+    -- Bypass Emotes (ใช้ SetAttribute แทนการกำหนด property โดยตรง)
+    local function hookButton(button)
+        if not button or button:GetAttribute("BypassHooked") then return end
+        button:SetAttribute("BypassHooked", true)
+
+        if button:FindFirstChild("UnlocksAtText") then
+            button.UnlocksAtText.Visible = false
+        end
+        if button:FindFirstChild("EmoteName") then
+            button.EmoteName.Visible = true
+        end
+
+        local successCoreUI, CoreUI = pcall(require, ReplicatedStorage.Modules.Core.UI)
+        if successCoreUI and CoreUI and CoreUI.on_click then
+            pcall(CoreUI.on_click, button, function() end)
+        end
+    end
+
+    -- Bypass Hotbar
+    local function lockTool(tool)
+        if tool and tool:IsA("Tool") then
+            pcall(function() tool:SetAttribute("Locked", true) end)
+        end
+    end
+
+    local function setupBackpack(backpack)
+        if not backpack then return end
+        for _, tool in ipairs(backpack:GetChildren()) do
+            lockTool(tool)
+        end
+        backpack.ChildAdded:Connect(lockTool)
+    end
+
+    task.spawn(function()
+        local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
+        if backpack then
+            setupBackpack(backpack)
+        else
+            LocalPlayer.ChildAdded:Connect(function(child)
+                if child:IsA("Backpack") then
+                    setupBackpack(child)
+                end
+            end)
+        end
+    end)
+
+    -- Bypass Emotes UI
+    task.spawn(function()
+        local ok1, EmotesList = pcall(require, ReplicatedStorage.Modules.Game.Emotes.EmotesList)
+        local ok2, CoreUI = pcall(require, ReplicatedStorage.Modules.Core.UI)
+        if ok1 and ok2 and CoreUI and CoreUI.get then
+            for _, emote in pairs(EmotesList) do
+                local button = CoreUI.get("EmoteTemplate").Parent:FindFirstChild(emote.name)
+                if button and not button:GetAttribute("BypassHooked") then
+                    hookButton(button)
+                end
+            end
+        end
+    end)
+
+    -- Bypass Tween
+    local ok, Util = pcall(require, ReplicatedStorage.Modules.Core.Util)
+    if ok and Util and not Util._bypassTween then
+        Util._bypassTween = true
+        local _old_tween = Util.tween
+        Util.tween = function(instance, tweenInfo, properties)
+            if instance and instance:IsA("NumberValue") and properties and properties.Value ~= nil then
+                instance.Value = properties.Value
+                return { Cancel = function() end }
+            end
+            return _old_tween(instance, tweenInfo, properties)
+        end
+    end
+
+    -- Bypass BuyPrompt
+    task.spawn(function()
+        local ok, BuyPromptUI = pcall(require, ReplicatedStorage.Modules.Game.UI.BuyPromptUI)
+        if ok and BuyPromptUI and BuyPromptUI.get then
+            local sellBtn = BuyPromptUI.get("SellPromptSellButton")
+            if sellBtn then
+                local hold = sellBtn:FindFirstChild("HoldStroke", true)
+                if hold then
+                    hold.Enabled = false
+                    local uiGrad = hold:FindFirstChildOfClass("UIGradient")
+                    if uiGrad then uiGrad.Enabled = false end
+                end
+                for _, v in pairs(sellBtn:GetDescendants()) do
+                    if v:IsA("NumberValue") then
+                        v.Value = 1
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- รัน Bypass หลังจาก UI พร้อมและโมดูลโหลดแล้ว
+task.spawn(function()
+    repeat task.wait() until LocalPlayer:FindFirstChild("PlayerGui")
+    repeat task.wait() until ReplicatedStorage:FindFirstChild("Modules")
+    setupBypass()
+end)
+
+-- ==========================================
+-- [[ FIXED SCRIPT: YONIX HUB ]]
+-- ==========================================
+
+-- Initial setup: services and basic variables
+local replicated = game:GetService("ReplicatedStorage")
+local PathfindingService = game:GetService("PathfindingService")
+local vim = game:GetService("VirtualInputManager")
+local teleport = game:GetService('TeleportService')
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local Client = Players.LocalPlayer
+local Character = Client.Character or Client.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
+local Backpack = Client:WaitForChild("Backpack")
+
+_G.Functions = _G.Functions or {}
+local Functions = _G.Functions
+
+-- ==========================================
+-- [[ INITIALIZE GLOBAL VARIABLES ]]
+-- ==========================================
+_G = _G or {}
+_G["Auto ATM"] = false
+_G["AutoBike"] = false
+_G["Deposit"] = false
+_G["HackToolClass"] = "HackToolBasic"
+_G["Amount"] = 3
+_G["Money"] = 10000
+_G["Auto Janitor Quest"] = false
+_G["Auto Steak House"] = false
+_G["Auto Seven Eleven Quest"] = false
+_G["EnabledCustomWalkSpeed"] = false
+_G["SpeedAmount"] = 8
+_G["EnabledCustomJumpPower"] = false
+_G["JumpAmount"] = 3.895
+_G["AutoRespawn"] = false
+_G["AntiDied"] = false
+_G["AutoRejoinDieded"] = false
+_G["AIWALKINGSPEED"] = 24
+_G["OLD"] = 24
+_G["DamageAura"] = false
+_G["Around"] = 8
+_G["FovCircle"] = false
+_G["AroundRadius"] = 100
+_G["Field of View"] = 70
+_G["AmmoCrate"] = "Pistol"
+_G["GunCrate"] = "Basic"
+_G["CaseCrate"] = "Basic"
+_G["StopWalking"] = false
+_G["StopDriving"] = false
+_G["detectedTeleport"] = false
+_G["keys"] = {}
+
+-- ==========================================
+-- [[ UTILITY FUNCTIONS ]]
+-- ==========================================
+
+-- Notification (ปลอดภัย)
+pcall(function()
+    local Notif = require(replicated.Modules.Game.UI.NotificationsUI)
+    if Notif and Notif.show_notification then
+        Notif.show_notification("rbxassetid://103816145608946", "Yenix Hub Is Here", 3, true)
+    end
+end)
+
+local fireproximityprompt = fireproximityprompt or getfenv().fireproximityprompt
+
+function dist(Objective : CFrame)
+    if not Client.Character or not Client.Character:FindFirstChild("HumanoidRootPart") then
+        return math.huge
+    end
+    return (Objective.Position - Client.Character.HumanoidRootPart.Position).Magnitude
+end
+
+function GetInfo(w : string)
+    local amount = 0
+    local IsHaving = false
+    local Uid = nil
+    local itemsFrame = Client.PlayerGui:FindFirstChild("Items")
+    if itemsFrame then
+        local holder = itemsFrame:FindFirstChild("ItemsHolder")
+        if holder then
+            local scroll = holder:FindFirstChild("ItemsScrollingFrame")
+            if scroll then
+                for i, v in pairs(scroll:GetChildren()) do
+                    if v.Name ~= 'Folder' and v.Name ~= 'UIGridLayout' then
+                        if v:FindFirstChild("ItemName") and v.ItemName.Text == w then
+                            Uid = v.Name
+                            amount = amount + 1
+                            IsHaving = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return { amount, IsHaving, Uid }
+end
+
+function GetMoney()
+    local topRight = Client.PlayerGui:FindFirstChild("TopRightHud")
+    if topRight then
+        local holder = topRight:FindFirstChild("Holder")
+        if holder and holder:FindFirstChild("Frame") then
+            local moneyLabel = holder.Frame:FindFirstChild("MoneyTextLabel")
+            if moneyLabel then
+                return tonumber(moneyLabel.Text:sub(2)) or 0
+            end
+        end
+    end
+    return 0
+end
+
+function ATMMoney()
+    for i,v in ipairs(Client.PlayerGui:GetDescendants()) do
+        if v:IsA("TextLabel") and string.find(v.Text, "Bank Balance") then
+            return tonumber(v.Text:match("%$(%d+)")) or 0
+        end
+    end
+    return 0
+end
+
+function GetChipPrice(types : string)
+    local ChipPrice = {
+        ["HackToolBasic"] = 10,
+        ["HackToolPro"] = 150,
+        ["HackToolUltimate"] = 350,
+    }
+    return ChipPrice[types]
+end
+
+function CheckingIsHacking()
+    local slider = Client.PlayerGui:FindFirstChild("SliderMinigame")
+    if slider then
+        for i,v in pairs(slider:GetChildren()) do
+            if v.Visible then return true end
+        end
+    end
+    return false
+end
+
+function TeleportDetect()
+    local count = 0
+    local notifFrame = Client.PlayerGui:FindFirstChild("Notifications")
+    if notifFrame then
+        local frame = notifFrame:FindFirstChild("Frame")
+        if frame then
+            for _, v in pairs(frame:GetChildren()) do
+                if v.Name == "Notification" and (v.Text == "Teleport detected" or v.Text == "Anti noclip triggered") then
+                    count = count + 1
+                    if count > 1 then return true end
+                end
+            end
+        end
+    end
+    return false
+end
+
+-- Disable collision on doors, remove vehicle blockers
+do
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v.Name == "DoorSystem" and v:IsA('BasePart') then
+            v.CanCollide = false
+        end
+        if v.Name == "VehicleBlockers" then v:Destroy() end
+    end
+end
+
+local function walkTo(destination: Vector3, value: boolean)
+    if not value then return end
+    local character = Client.Character or Client.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+
+    local path = PathfindingService:CreatePath({
+        AgentCanJump = true,
+        AgentJumpHeight = 2,
+        AgentHeight = 5.5,
+        AgentRadius = 2.5,
+    })
+
+    local success = pcall(function()
+        path:ComputeAsync(rootPart.Position, destination)
+    end)
+
+    if success and path.Status == Enum.PathStatus.Success then
+        for _, wp in ipairs(path:GetWaypoints()) do
+            if _G["StopWalking"] then return end
+            if humanoid.Health <= 0 then break end
+
+            local finished = false
+            local conn = humanoid.MoveToFinished:Connect(function()
+                finished = true
+                conn:Disconnect()
+            end)
+
+            humanoid:MoveTo(wp.Position)
+            if wp.Action == Enum.PathWaypointAction.Jump then
+                humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+
+            repeat task.wait() until finished or _G["StopWalking"]
+            if _G["StopWalking"] then return end
+        end
+    else
+        warn("Pathfinding failed: ", path.Status)
+    end
+end
+
+local function Driveto(model: Model, destination: Vector3, value: boolean, t)
+    _G["StopDriving"] = true
+    task.wait()
+    _G["StopDriving"] = false
+
+    local path = PathfindingService:CreatePath({
+        AgentRadius = 1.5,
+        AgentHeight = 5.5,
+        AgentCanJump = true,
+        AgentMaxSlope = 45
+    })
+
+    local success = pcall(function()
+        path:ComputeAsync(model.PrimaryPart.Position, destination)
+    end)
+
+    if success and path.Status == Enum.PathStatus.Success then
+        local waypoints = path:GetWaypoints()
+        for i, waypoint in ipairs(waypoints) do
+            if _G["StopDriving"] then return end
+
+            local startPos = model.PrimaryPart.Position
+            local goalPos = waypoint.Position + Vector3.new(0, 1.5, 0)
+            local dir = (goalPos - startPos).Unit
+            local dist = (goalPos - startPos).Magnitude
+            local movedDist = 0
+            local speed = 55
+            local startTime = tick()
+
+            while movedDist < dist and not _G.StopDriving and value do
+                if not value or (t and t:GetAttribute(_G.keys[3])) and not CheckingIsHacking() then
+                    local carclip = model.PrimaryPart:FindFirstChild("CarClip")
+                    if carclip then carclip:Destroy() end
+                    break
+                end
+                task.wait()
+                if _G["StopDriving"] then break end
+                if Client.Character.Humanoid.Health <= 0 then break end
+                if not _G["Auto ATM"] or not Client.Character.Humanoid.Sit then break end
+
+                if TeleportDetect() then
+                    local carclip = model.PrimaryPart:FindFirstChild("CarClip")
+                    if carclip then carclip:Destroy() end
+                    Driveto(model, destination, value, t)
+                    break
+                end
+
+                if Client.Character.Humanoid.Sit then
+                    if model.PrimaryPart:FindFirstChild("CarClip") then
+                        if waypoint.Action == Enum.PathWaypointAction.Jump then
+                            local downPos = model.PrimaryPart.Position + Vector3.new(0, 6, 0)
+                            local jumpRotation = CFrame.lookAt(downPos, downPos + dir)
+                            model:SetPrimaryPartCFrame(jumpRotation)
+                            task.wait(0.2)
+                        end
+                        local dt = tick() - startTime
+                        movedDist = math.min(dt * speed, dist)
+                        local newPos = startPos + dir * movedDist
+                        local rotation = CFrame.lookAt(newPos, newPos + dir)
+                        model:SetPrimaryPartCFrame(rotation)
+                    else
+                        local i = Instance.new("BodyVelocity")
+                        i.Name = "CarClip"
+                        i.MaxForce = Vector3.new(100000, 100000, 100000)
+                        i.P = 1250
+                        i.Velocity = Vector3.zero
+                        i.Parent = model.PrimaryPart
+                    end
+                end
+            end
+            if _G["StopDriving"] then break end
+        end
+
+        local carclip = model.PrimaryPart:FindFirstChild("CarClip")
+        if carclip then carclip:Destroy() end
+    else
+        warn("Pathfinding failed: ", path.Status)
+    end
+end
+
+function StopWalking()
+    _G["StopWalking"] = true
+    if Client.Character and Client.Character:FindFirstChild("Humanoid") then
+        Client.Character.Humanoid:MoveTo(Client.Character.HumanoidRootPart.Position)
+    end
+    task.wait()
+    _G["StopWalking"] = false
+end
+
+function Get_Vehicles(types: string, callback)
+    for _, b in ipairs(workspace:FindFirstChild("Vehicles") or {}) do
+        if b:GetAttribute('OwnerUserId') ~= Client.UserId then
+            local Checker = GetInfo(types)
+            if Checker[2] and Functions and Functions.get then
+                pcall(Functions.get, "toggle_equip_item_1", Checker[3])
+            end
+        end
+        if b:GetAttribute('OwnerUserId') == Client.UserId and not CheckingIsHacking() and not TeleportDetect() then
+            task.wait(0.2)
+            if Functions and Functions.send then pcall(Functions.send, "lock_vehicle", b, true) end
+            task.wait()
+            callback(b)
+        end
+    end
+end
+
+-- ==========================================
+-- [[ FUNCTIONS LOADER (LoadFuncs) ]]
+-- ==========================================
+local LoadFuncs = {}
+LoadFuncs.__index = LoadFuncs
+
+LoadFuncs['Auto ATM'] = setmetatable({}, {__call = function(self, value : boolean)
+    if _G['AutoBike'] then
+        Get_Vehicles("BMX", function(v)
+            if not Client.Character.Humanoid.Sit and not CheckingIsHacking() and not TeleportDetect() then
+                v:SetPrimaryPartCFrame(Client.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, -5))
+                if fireproximityprompt then
+                    fireproximityprompt(v.Chassis.DrivePromptAttachment.DrivePrompt, 1)
+                end
+            elseif Client.Character.Humanoid.Sit and not CheckingIsHacking() and not TeleportDetect() then
+                local hacktool = GetInfo(_G['HackToolClass'])
+                if hacktool[2] then
+                    if hacktool[1] >= 0 then
+                        local closestATM, shortestDist = nil, math.huge
+                        for _, vATM in ipairs(workspace.Map.Props:GetChildren()) do
+                            if vATM.Name == "ATM" then
+                                _G.keys = {}
+                                for k in pairs(vATM:GetAttributes()) do table.insert(_G.keys, k) end
+                                table.sort(_G.keys)
+                                if _G.keys[3] and vATM:GetAttribute(_G.keys[3]) == false then
+                                    local d = dist(vATM.Area.CFrame)
+                                    if d < shortestDist then
+                                        closestATM = vATM
+                                        shortestDist = d
+                                    end
+                                end
+                            end
+                        end
+                        if closestATM then
+                            if closestATM:GetAttribute(_G.keys[3]) == false then
+                                repeat
+                                    task.wait()
+                                    local distance = dist(closestATM.Area.CFrame)
+
+                                    if distance > 5 and Humanoid.Sit and not CheckingIsHacking() and not TeleportDetect() then
+                                        Driveto(v, closestATM.Area.Position, value, closestATM)
+                                    elseif distance < 5 and Humanoid.Sit and not CheckingIsHacking() and not TeleportDetect() then
+                                        if _G.Deposit and GetMoney() >= _G.Money and Functions and Functions.get then
+                                            pcall(Functions.get, "transfer_funds", "hand", "bank", _G.Money)
+                                        end
+                                        Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                                    elseif distance < 5 and not Humanoid.Sit and not TeleportDetect() then
+                                        if not CheckingIsHacking() then
+                                            if Functions and Functions.send then
+                                                pcall(Functions.send, "request_begin_hacking_2", closestATM, _G['HackToolClass'])
+                                            end
+                                        else
+                                            task.wait(1.2)
+                                            if Functions and Functions.send then
+                                                pcall(Functions.send, "atm_win_3", closestATM)
+                                            end
+                                        end
+                                    end
+                                until closestATM:GetAttribute(_G.keys[3]) == true or not value or hacktool[1] == 0
+                            end
+                        end
+                    end
+                else
+                    if GetMoney() <= GetChipPrice(_G.HackToolClass) * _G.Amount then
+                        if ATMMoney() >= GetChipPrice(_G.HackToolClass) then
+                            local closestATMs, shortestDistd = nil, math.huge
+                            for _, vs in ipairs(workspace.Map.Props:GetChildren()) do
+                                if vs.Name == "ATM" then
+                                    _G.keys = {}
+                                    for k in pairs(vs:GetAttributes()) do table.insert(_G.keys, k) end
+                                    table.sort(_G.keys)
+                                    if _G.keys[3] and vs:GetAttribute(_G.keys[3]) == false then
+                                        local d = dist(vs.Area.CFrame)
+                                        if d < shortestDistd then
+                                            closestATMs = vs
+                                            shortestDistd = d
+                                        end
+                                    end
+                                end
+                            end
+                            if closestATMs then
+                                if closestATMs:GetAttribute(_G.keys[3]) == false then
+                                    repeat
+                                        task.wait()
+                                        if dist(closestATMs.Area.CFrame) > 5 and not CheckingIsHacking() and not TeleportDetect() then
+                                            Driveto(v, closestATMs.Area.Position, value, closestATMs)
+                                        elseif dist(closestATMs.Area.CFrame) < 5 and not CheckingIsHacking() and not TeleportDetect() and Humanoid.Sit then
+                                            if Functions and Functions.send then
+                                                pcall(Functions.send, "transfer_funds", "bank", "hand", GetChipPrice(_G.HackToolClass) * _G.Amount - GetMoney())
+                                            end
+                                        end
+                                        return
+                                    until not value or GetMoney() <= GetChipPrice(_G.HackToolClass) * _G.Amount
+                                end
+                            end
+                        end
+                    else
+                        if dist(CFrame.new(-212, 255, 387)) < 20 then
+                            if GetMoney() >= GetChipPrice(_G.HackToolClass) * _G.Amount then
+                                for i = 1, _G["Amount"] do
+                                    if Functions and Functions.get then
+                                        pcall(Functions.get, "purchase_consumable", workspace:WaitForChild("ShopZone_Illegal"), _G["HackToolClass"])
+                                    end
+                                end
+                                return
+                            end
+                        end
+                        Driveto(v, Vector3.new(-212.181717, 255.525162, 387.744324), _G['Auto ATM'])
+                    end
+                end
+            end
+        end)
+    end
+end})
+
+LoadFuncs["Auto Janitor Quest"] = setmetatable({}, {__call = function(self, value: boolean)
+    if not value then StopWalking() end
+    if value then
+        if Client:GetAttribute("Job") == "janitor" then
+            if Client.Character:FindFirstChild('Mop') then
+                local nearestPuddle = nil
+                local shortestDistance = math.huge
+                local puddles = workspace.Map.Tiles.BurgerPlaceTile.BurgerPlace.Interior.Puddles:GetChildren()
+                for _, puddle in ipairs(puddles) do
+                    if puddle:IsA("BasePart") and puddle.Size.Magnitude > 0.001 and puddle.Transparency < 1 and puddle.Name ~= "NastyPuddle" and puddle.Name ~= "ToxicPuddle" and puddle.Name ~= "OilPuddle" then
+                        local distance = (puddle.Position - Client.Character.HumanoidRootPart.Position).Magnitude
+                        if distance < shortestDistance then
+                            nearestPuddle = puddle
+                            shortestDistance = distance
+                        end
+                    end
+                end
+                if nearestPuddle then
+                    walkTo(nearestPuddle.Position, value)
+                end
+            else
+                Humanoid:EquipTool('Mop')
+            end
+        else
+            if dist(CFrame.new(110, 255, -309)) < 3 then
+                if Functions and Functions.send then
+                    pcall(Functions.send, "apply_for_job", workspace:WaitForChild("BurgePlaceBeacon"))
+                end
+            end
+            walkTo(Vector3.new(110.824829, 255.190384, -309.609131), value)
+        end
+    end
+end})
+
+LoadFuncs["Auto Steak House"] = setmetatable({}, {
+    __call = function(self, value: boolean)
+        if not value then StopWalking() return end
+
+        local steakList = {"Steak", "BronzeSteak", "SilverSteak", "GoldenSteak", "DiamondSteak"}
+        local progressGui = Client.PlayerGui:FindFirstChild("ProgressBar")
+        if progressGui then
+            progressGui = progressGui:FindFirstChild("ProgressBarFrame")
+        end
+
+        local hasSteak = false
+        local steakTool = nil
+        for _, name in pairs(steakList) do
+            if Backpack:FindFirstChild(name) then
+                hasSteak = true
+                steakTool = Backpack:FindFirstChild(name)
+                break
+            elseif Character:FindFirstChild(name) then
+                hasSteak = true
+                break
+            end
+        end
+
+        if Client:GetAttribute("Job") == "steakhouse_cook" then
+            if not hasSteak and (not progressGui or not progressGui.Visible) then
+                if dist(CFrame.new(-279.035919, 256.224487, 334.839172)) < 5 then
+                    vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                    vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                end
+                walkTo(Vector3.new(-279.16619873046875, 256.2244873046875, 335.1399841308594), value)
+            else
+                if hasSteak and (not progressGui or not progressGui.Visible) then
+                    if steakTool then
+                        Humanoid:EquipTool(steakTool)
+                    end
+                    if workspace:FindFirstChild("Beacon") and workspace.Beacon.PrimaryPart then
+                        walkTo(workspace.Beacon.PrimaryPart.Position, value)
+                    end
+                elseif progressGui and progressGui.Visible then
+                    local scale = progressGui.MainFrame.BarAmount.Size.X.Scale
+                    if scale > 0.95 and scale < 1 then
+                        for _, v in pairs(workspace.Map.Tiles.ShoppingTile.SteakHouse.Interior:GetChildren()) do
+                            if v.Name == "Grill" and Functions and Functions.send then
+                                pcall(Functions.send, "finish_grilling_2", v, "Perfect")
+                            end
+                        end
+                    end
+                end
+            end
+        else
+            if dist(CFrame.new(-234.644211, 256.224518, 339.919342)) < 5 then
+                if Functions and Functions.send then
+                    pcall(Functions.send, "apply_for_job", workspace.Map.Tiles.ShoppingTile.SteakHouse.Interior.SteakHouseBeacon)
+                end
+            end
+            walkTo(Vector3.new(-234.56198120117188, 256.2244873046875, 339.0831298828125), value)
+        end
+    end
+})
+
+LoadFuncs["Auto Seven Eleven Quest"] = setmetatable({}, {__call = function(self, Value : boolean)
+    if not Value then StopWalking() end
+    if Client:GetAttribute("Job") == "shelf_stocker" then
+        if not Client.Backpack:FindFirstChild("BoxTool") and not Client.Character:FindFirstChild("BoxTool") then
+            if dist(CFrame.new(143, 255, 207)) < 5 then
+                if fireproximityprompt then
+                    fireproximityprompt(workspace.Map.Tiles.GasStationTile.Quick11.Interior.ShelfStockingJob.NormalBox.ProximityPrompt, 3)
+                end
+            end
+            walkTo(Vector3.new(143, 255, 207), Value)
+        else
+            if Client.Character:FindFirstChild("BoxTool") then
+                repeat
+                    task.wait()
+                    for _, v in pairs(workspace.Map.Tiles.GasStationTile.Quick11.Interior.ShelfStockingJob.Shelves:GetChildren()) do
+                        if v:FindFirstChild("Attachment") then
+                            walkTo(v.Position, Value)
+                        end
+                    end
+                until not Client.Character:FindFirstChild("BoxTool") or not Value
+            else
+                Humanoid:EquipTool(Client.Backpack:FindFirstChild("BoxTool"))
+            end
+        end
+    else
+        if dist(CFrame.new(165.542587, 255.190521, 203.767914)) < 5 then
+            if Functions and Functions.send then
+                pcall(Functions.send, "apply_for_job", workspace:WaitForChild("Map"):WaitForChild("Tiles"):WaitForChild("GasStationTile"):WaitForChild("Quick11"):WaitForChild("Interior"):WaitForChild("Quick11Beacon"))
+            end
+        end
+        walkTo(Vector3.new(166.34539794921875, 255.19053649902344, 203.02333068847656), Value)
+    end
+end})
+
+LoadFuncs['EnabledCustomWalkSpeed'] = setmetatable({}, {__call = function(self, value : boolean)
+    if value then
+        if Functions and Functions.send then pcall(Functions.send, "set_sprinting_1", true) end
+        local hum = Client.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:SetAttribute("TargetWalkSpeed", _G['SpeedAmount'])
+            hum.WalkSpeed = _G['SpeedAmount']
+        end
+    else
+        if Functions and Functions.send then pcall(Functions.send, "set_sprinting_1", false) end
+        local hum = Client.Character:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum:SetAttribute("TargetWalkSpeed", 8)
+            hum.WalkSpeed = 8
+        end
+    end
+end})
+
+LoadFuncs['EnabledCustomJumpPower'] = setmetatable({}, {__call = function(self, value : boolean)
+    local hum = Client.Character:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.JumpHeight = value and _G['JumpAmount'] or 3.895
+    end
+end})
+
+LoadFuncs['AutoRespawn'] = setmetatable({}, {__call = function(self, value : boolean)
+    if not value then _G["detectedTeleport"] = false return end
+    local deathScreen = Client.PlayerGui:FindFirstChild("DeathScreen")
+    if deathScreen then
+        local holder = deathScreen:FindFirstChild("DeathScreenHolder")
+        if holder and holder.Visible and Functions and Functions.send then
+            pcall(Functions.send, 'death_screen_request_respawn')
+        end
+    end
+end})
+
+LoadFuncs['AutoRejoinDieded'] = setmetatable({}, {__call = function(self, value : boolean)
+    if Client.Character and Client.Character.Humanoid.Health <= 0 then
+        teleport:Teleport(game.PlaceId, Client)
+    end
+end})
+
+task.spawn(function()
+    while task.wait() do
+        if _G['Auto Seven Eleven Quest'] or _G['Auto Janitor Quest'] or _G['Auto Steak House'] or _G['Auto ATM'] then
+            local detected = false
+            local notifFrame = Client.PlayerGui:FindFirstChild("Notifications")
+            if notifFrame then
+                local frame = notifFrame:FindFirstChild("Frame")
+                if frame then
+                    for _, v in pairs(frame:GetChildren()) do
+                        if v.Name == "Notification" and v.Text == "Teleport detected" then
+                            detected = true
+                            break
+                        end
+                    end
+                end
+            end
+            _G.detectedTeleport = detected
+            _G['AIWALKINGSPEED'] = _G.detectedTeleport and 24 or _G['OLD']
+
+            pcall(function()
+                if Functions and Functions.send then Functions.send("set_sprinting_1", true) end
+                local hum = Client.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum:SetAttribute("TargetWalkSpeed", _G['AIWALKINGSPEED'])
+                    hum.WalkSpeed = _G['AIWALKINGSPEED']
+                end
+            end)
+        end
+    end
+end)
+
+LoadFuncs['AntiDied'] = setmetatable({}, {__call = function(self, value : boolean)
+    while _G['AntiDied'] do
+        task.wait(0.8)
+        if Client.Character and Client.Character.Humanoid.Health <= 30 then
+            local root = Client.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                root.Anchored = _G['AntiDied']
+                Client.Character:PivotTo(CFrame.new(root.CFrame.X, root.CFrame.Y + 60, root.CFrame.Z))
+            end
+        end
+    end
+end})
+
+LoadFuncs['DamageAura'] = setmetatable({}, {__call = function(self, value : boolean)
+    if value then
+        for _, v in pairs(Client.Character:GetChildren()) do
+            if v:IsA('Tool') then
+                for _, vx in pairs(Players:GetPlayers()) do
+                    if vx ~= Client and vx.Character and vx.Character:FindFirstChild("HumanoidRootPart") then
+                        if dist(vx.Character.HumanoidRootPart.CFrame) < _G['Around'] then
+                            if Functions and Functions.send then
+                                pcall(Functions.send, "melee_attack", v, {vx}, vx.Character.HumanoidRootPart.CFrame, 0.4)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end})
+
+-- ==========================================
+-- [[ DRAWING CIRCLE ]]
+-- ==========================================
+if not _G.Has then
+    _G.Has = Drawing.new("Circle")
+    _G.Has.Thickness = 1.5
+    _G.Has.Color = Color3.fromRGB(255,255,255)
+    _G.Has.Filled = false
+end
+
+RunService.Stepped:Connect(function()
+    local Mouse = Client:GetMouse()
+    _G.Has.Radius = _G['AroundRadius']
+    _G.Has.Visible = _G.FovCircle
+    _G.Has.Position = Vector2.new(Mouse.X, Mouse.Y + 55)
+end)
+
+-- ==========================================
+-- [[ UI LIBRARY LOADING - WINDUI ]]
+-- ==========================================
+
+local WindUI = nil
+local windUIUrls = {
+    "https://raw.githubusercontent.com/footagesus/WindUI/main/source.lua",
+    "https://raw.githubusercontent.com/footagesus/WindUI/main/WindUI.lua",
+    "https://raw.githubusercontent.com/footagesus/WindUI/main/init.lua"
+}
+
+for _, url in ipairs(windUIUrls) do
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet(url, true))()
+    end)
+    if success and result then
+        WindUI = result
+        break
+    end
+end
+
+if not WindUI then
+    warn("WindUI โหลดไม่สำเร็จ (HTTP 404 หรือ syntax error) -> จะไม่แสดง GUI แต่ฟีเจอร์อื่นยังทำงานได้")
+else
+    -- สร้างหน้าต่างหลัก
+    local Window = WindUI:CreateWindow({
+        Title = "Yonix Hub",
+        SubTitle = "WindUI Edition",
+        Theme = "Dark",
+        Size = UDim2.new(0, 600, 0, 400),
+        Resizable = true
+    })
+
+    -- สร้างแท็บ
+    local HomeTab = Window:Tab("Home")
+    local VisualTab = Window:Tab("Visual")
+
+    -- ฟังก์ชันเพิ่ม Section
+    local function AddSection(tab, name)
+        return tab:Section(name, true)
+    end
+
+    -- ฟังก์ชันเพิ่ม Toggle (รองรับ LoadFuncs)
+    local function AddToggle(section, title, desc, settingName)
+        return section:Toggle(title, desc, function(state)
+            _G[settingName] = state
+            if LoadFuncs[settingName] then
+                task.spawn(function()
+                    while _G[settingName] do
+                        LoadFuncs[settingName](state)
+                        task.wait(0.1)
+                    end
+                end)
+            end
+        end, _G[settingName])
+    end
+
+    -- ฟังก์ชันเพิ่ม Dropdown
+    local function AddDropdown(section, title, desc, values, default, callback)
+        return section:Dropdown(title, desc, values, function(option)
+            _G[default] = option
+            if callback then callback(option) end
+        end, _G[default])
+    end
+
+    -- ฟังก์ชันเพิ่ม Slider
+    local function AddSlider(section, title, desc, min, max, value, callback)
+        return section:Slider(title, desc, min, max, function(v)
+            _G[value] = v
+            if callback then callback(v) end
+        end, _G[value])
+    end
+
+    -- ฟังก์ชันเพิ่ม Button
+    local function AddButton(section, title, desc, callback)
+        return section:Button(title, desc, callback)
+    end
+
+    -- ==========================================
+    -- [[ สร้าง UI ตามเดิม แต่ใช้ WindUI ]]
+    -- ==========================================
+
+    -- Tab Home: ATM
+    local ATM = AddSection(HomeTab, "ATM")
+
+    AddDropdown(ATM, "Select Hack Tool Type", "", {"HackToolBasic", "HackToolPro", "HackToolUltimate"}, "HackToolClass", function(v) end)
+    AddSlider(ATM, "Item Amount", "", 1, 10, "Amount")
+    AddSlider(ATM, "Money Amount", "", 1, 10000, "Money")
+    AddToggle(ATM, "Auto ATM", "ไอ้สัสขโมย", "Auto ATM")
+    AddToggle(ATM, "Enabled Bike", "ไอ้สัสขโมยระดับโหดๆ", "AutoBike")
+    AddToggle(ATM, "Enabled Deposit", "EZ Money", "Deposit")
+
+    -- Tab Home: Job
+    local Jobs = AddSection(HomeTab, "Job")
+    AddToggle(Jobs, "Auto Janitor", "ภารโรง", "Auto Janitor Quest")
+    AddToggle(Jobs, "Auto Steak House", "เชฟ", "Auto Steak House")
+    AddToggle(Jobs, "Auto 7-11", "พนักงานเซเว่น Eleven", "Auto Seven Eleven Quest")
+
+    -- Tab Home: Modifies
+    local Modifiers = AddSection(HomeTab, "Modifies")
+    AddToggle(Modifiers, "Enabled Custom WalkSpeed", "WalkSpeed", "EnabledCustomWalkSpeed")
+    AddSlider(Modifiers, "Speed Amount", "", 1, 30, "SpeedAmount")
+    AddToggle(Modifiers, "Enabled Custom JumpPower", "JumpPower", "EnabledCustomJumpPower")
+    AddSlider(Modifiers, "Jump Amount", "", 1, 25, "JumpAmount")
+
+    -- Tab Home: Settings (ฝั่งขวา)
+    local Settings = AddSection(HomeTab, "Settings")
+    AddToggle(Settings, "Auto Respawn if u died", "แก้ให้ถ้าแม่งตายห่าตายโหง", "AutoRespawn")
+    AddToggle(Settings, "Anti Died", "กันแม่งถ้าแม่งตายอะ", "AntiDied")
+    AddToggle(Settings, "Auto Rejoin When Died", "แม่งจะรีเกมตอนที่แม่งตายห่าตายโหงอะ", "AutoRejoinDieded")
+    AddSlider(Settings, "Instant Speed", "", 1, 150, "AIWALKINGSPEED", function(v) _G["OLD"] = v end)
+
+    -- Tab Home: Ammo, Guns, Car (ครบตามเดิม)
+    local Crate = AddSection(HomeTab, "Ammo")
+    AddDropdown(Crate, "Choose Ammo Crate Type", "", {"Pistol", "Rifle", "Shotgun", "Special"}, "AmmoCrate", function(v) end)
+    AddButton(Crate, "Open Crate (Must be Near)", "", function()
+        if Functions and Functions.send then
+            pcall(Functions.send, 'open_crate', workspace:WaitForChild("Map"):WaitForChild("Tiles"):WaitForChild("GunShopTile"):WaitForChild("PatriotWeapons"):WaitForChild("Interior"):WaitForChild("Crates"):WaitForChild("Ammo Crate"):WaitForChild("CrateOptions"):WaitForChild(_G['AmmoCrate']), "money")
+        end
+    end)
+
+    local Guns = AddSection(HomeTab, "Guns")
+    AddDropdown(Guns, "Choose Gun Crate Type", "", {"Basic", "Advanced", "Superior", "Elite", "Legendary", "Omega"}, "GunCrate", function(v) end)
+    AddButton(Guns, "Open Crate (Must be Near)", "", function()
+        if Functions and Functions.send then
+            pcall(Functions.send, 'open_crate', workspace:WaitForChild("Map"):WaitForChild("Tiles"):WaitForChild("GunShopTile"):WaitForChild("PatriotWeapons"):WaitForChild("Interior"):WaitForChild("Crates"):WaitForChild("Weapon Crate"):WaitForChild("CrateOptions"):WaitForChild(_G['GunCrate']), "money")
+        end
+    end)
+
+    local Case = AddSection(HomeTab, "Car")
+    AddDropdown(Case, "Choose Car Crate Type", "", {'Basic', 'Rare', 'Elite'}, "CaseCrate", function(v) end)
+    AddButton(Case, "Open Crate (Must be Near)", "", function()
+        if Functions and Functions.send then
+            pcall(Functions.send, 'open_crate', workspace:WaitForChild("Map"):WaitForChild("Tiles"):WaitForChild("PrestigeDealerAndHousing"):WaitForChild("PrestigeCarDealer"):WaitForChild("Interior"):WaitForChild("Crates"):WaitForChild("Car Crate"):WaitForChild("CrateOptions"):WaitForChild(_G['CaseCrate']), "money")
+        end
+    end)
+
+    -- Tab Visual
+    local Dm = AddSection(VisualTab, "General")
+    AddToggle(Dm, "Enabled Damage Aura", "DamageAura", "DamageAura")
+    AddSlider(Dm, "Range", "", 1, 30, "Around")
+
+    local DmsA = AddSection(VisualTab, "Aimbot")
+    AddToggle(DmsA, "Enabled Fov Circle", "Circle Fov", "FovCircle")
+    AddSlider(DmsA, "Radius Circle", "", 1, 200, "AroundRadius")
+    AddSlider(DmsA, "Field of View", "", 1, 120, "Field of View", function(v)
+        workspace.Camera.FieldOfView = v
+    end)
+
+    -- แสดง UI
+    Window:Show()
+end
