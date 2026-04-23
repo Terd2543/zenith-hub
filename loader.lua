@@ -1,3 +1,8 @@
+--[[
+    ZENITH HUB  |  Block Spin 🔫| FREE💸
+    แก้ไข: FOV Circle สีรุ้ง (Rainbow) สำหรับ Silent Aim
+]]
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1288,13 +1293,13 @@ local function loadESP()
     )
 end
 
+-- ========== สร้าง FOV Circle แบบสีรุ้ง (Rainbow) ==========
 if not isMobile then
     SilentFOVCircle = Drawing.new("Circle")
-    SilentFOVCircle.Color = Color3.fromRGB(255, 255, 255)
     SilentFOVCircle.Thickness = 1.4
     SilentFOVCircle.NumSides = 64
     SilentFOVCircle.Filled = false
-    SilentFOVCircle.Transparency = 3
+    SilentFOVCircle.Transparency = 0.6   -- ปรับความโปร่งใส (0-1)
     SilentFOVCircle.Radius = FOVRadius
     SilentFOVCircle.Visible = false
 else
@@ -1310,7 +1315,6 @@ else
     circleUI.CornerRadius = UDim.new(1, 0)
     circleUI.Parent = SilentFOVCircle
     local border = Instance.new("UIStroke")
-    border.Color = Color3.fromRGB(255, 255, 255)
     border.Thickness = 2
     border.Transparency = 0.2
     border.Parent = SilentFOVCircle
@@ -1603,6 +1607,7 @@ if Remote and Remote.FireServer then
     end
 end
 
+-- ========== RenderStepped สำหรับอัปเดต FOV แบบ Rainbow ==========
 RunService.RenderStepped:Connect(
     function()
         pcall(
@@ -1622,9 +1627,14 @@ RunService.RenderStepped:Connect(
                         if isMobile then
                             SilentFOVCircle.Position = UDim2.fromScale(0.5, 0.5)
                             SilentFOVCircle.Size = UDim2.fromOffset(FOVRadius * 2, FOVRadius * 2)
+                            local border = SilentFOVCircle:FindFirstChildWhichIsA("UIStroke")
+                            if border then
+                                border.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1)
+                            end
                         else
                             SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
                             SilentFOVCircle.Radius = FOVRadius
+                            SilentFOVCircle.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1)  -- Rainbow
                         end
                     end
                 end
