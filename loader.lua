@@ -1,8 +1,3 @@
---[[
-    ZENITH HUB  |  Block Spin 🔫| FREE💸
-    แก้ไข: FOV Circle สีรุ้ง (Rainbow) สำหรับ Silent Aim
-]]
-
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -56,7 +51,7 @@ if WindUI then
 
     Window:Tag(
         {
-            Title = "v1.3",
+            Title = "v5.6",
             Color = Color3.fromHex("#30ff6a"),
             Radius = 12
         }
