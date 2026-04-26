@@ -51,16 +51,6 @@ if WindUI then
             Transparent = true,
             Resizable = true,
             KeyCode = Enum.KeyCode.G
-            KeySystem = {                                                   
-            Note = "Key System.",              
-            API = {                                                     
-            { -- PlatoBoost
-                Type = "platoboost",                                
-                ServiceId = 1930, -- service id
-                Secret = "92633672-2f11-4637-87fe-6d825b425df7", -- platoboost secret
-            },                                                      
-        },                                                          
-    },       
         }
     )
 
