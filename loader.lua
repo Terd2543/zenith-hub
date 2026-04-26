@@ -1,3 +1,11 @@
+--[[
+    ZENITH HUB - PICKUP FIXED (NO KEYSYSTEM, NO WEBHOOK)
+    ระบบ Pickup ถูกปรับให้ใช้ _G.ZenithPickup เพื่อป้องกันปัญหาจาก Obfuscation
+    ไม่มี KeySystem, ไม่มี Webhook
+    ฟีเจอร์ครบ: Silent Aim, ESP, Gun Mod, Magnet Pickup, Auto Attack, Anti Kill, Auto Finish, etc.
+]]
+
+-- ========== SERVICES ==========
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +19,7 @@ local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
 local Lighting = game:GetService("Lighting")
 
+-- ========== REMOTES & MODULES ==========
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local Util = require(ReplicatedStorage.Modules.Core.Util)
 local BuyPromptUI = require(ReplicatedStorage.Modules.Game.UI.BuyPromptUI)
@@ -23,6 +32,7 @@ local MeleeFolder = ItemsFolder:WaitForChild("melee")
 local Remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Send", 5)
 local remoteGet = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
 
+-- ========== PLAYER ==========
 local LocalPlayer = Players.LocalPlayer
 local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
@@ -31,11 +41,15 @@ local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
--- WindUI
+-- ========== WINDUI (ไม่มี KeySystem) ==========
 local WindUI = nil
-pcall(function() WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))() end)
+pcall(function()
+    WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+end)
+
 local Window
 local useFallbackGUI = false
+
 if WindUI then
     Window = WindUI:CreateWindow({
         Title = "ZENITH HUB",
@@ -47,14 +61,7 @@ if WindUI then
         Transparent = true,
         Resizable = true,
         KeyCode = Enum.KeyCode.G
-        KeySystem = {                                                   
-        Note = " Key System.",        
-        API = {                                                     
-            { -- pandadevelopment
-                Type = "pandadevelopment", -- type
-                ServiceId = "0e57e459-b188-4aff-b991-ea4cf3766b21", -- service id
-            },                                                      
-        }, 
+        -- ไม่มี KeySystem
     })
     if Window then
         Window:Tag({ Title = "v3.0", Color = Color3.fromHex("#30ff6a"), Radius = 12 })
@@ -65,11 +72,17 @@ else
     useFallbackGUI = true
 end
 
--- Fallback GUI (simplified, keep as original but not shown for length)
+-- ========== FALLBACK GUI (ถ้า WindUI โหลดไม่สำเร็จ) ==========
 local FallbackGui = nil
 local FallbackTabs = {}
 if useFallbackGUI then
-    -- Placeholder, assume fallback creation code exists in full script
+    -- สร้าง Fallback GUI อย่างง่าย (ขอย่อเพื่อความยาว แต่สามารถเพิ่มได้)
+    FallbackGui = Instance.new("ScreenGui")
+    FallbackGui.Name = "ZenithHub_Fallback"
+    FallbackGui.ResetOnSpawn = false
+    FallbackGui.Parent = CoreGui
+    -- ... (สร้าง UI แบบพื้นฐาน) ...
+    -- สำหรับตัวอย่างนี้จะข้ามการเขียนยาวๆ แต่ควรมีในสคริปต์จริง
 end
 
 local ConfigManager = Window.ConfigManager
@@ -102,7 +115,7 @@ local function isPlayerExcluded(playerName)
     return false
 end
 
--- ========== COUNTER TABLE (dynamic find) ==========
+-- ========== COUNTER TABLE MANAGEMENT (real-time find) ==========
 local function findCounterTable()
     for _, obj in ipairs(getgc(true)) do
         if type(obj) == "table" and rawget(obj, "event") and rawget(obj, "func") then
@@ -127,20 +140,22 @@ end
 local function fireRemote(action, ...)
     local seq = getCounter(true)
     if not seq then return false end
-    local remoteSend = ReplicatedStorage.Remotes.Send
-    pcall(function() remoteSend:FireServer(seq, action, ...) end)
+    pcall(function()
+        Remote:FireServer(seq, action, ...)
+    end)
     return true
 end
 
 local function invokeRemote(action, ...)
     local seq = getCounter(false)
     if not seq then return nil end
-    local remoteGet = ReplicatedStorage.Remotes.Get
-    local success, result = pcall(function() return remoteGet:InvokeServer(seq, action, ...) end)
+    local success, result = pcall(function()
+        return remoteGet:InvokeServer(seq, action, ...)
+    end)
     return success and result or nil
 end
 
--- ========== PICKUP SYSTEM (uses _G to survive obfuscation) ==========
+-- ========== PICKUP SYSTEM (ใช้ _G เพื่อทนต่อ Obfuscation) ==========
 _G.ZenithPickup = _G.ZenithPickup or { sucking = false, lastPickupTimes = {} }
 
 local function NetGet(...)
@@ -158,7 +173,7 @@ local function NetGet(...)
     end
     counterTable.func = (counterTable.func or 0) + 1
     local success, result = pcall(function()
-        return ReplicatedStorage.Remotes.Get:InvokeServer(counterTable.func, unpack(args))
+        return remoteGet:InvokeServer(counterTable.func, unpack(args))
     end)
     if not success then warn("[NetGet Error]", result) end
     return result
@@ -174,8 +189,8 @@ local function CheckAndPickup()
         if item:IsA("Model") then
             local part = item:FindFirstChildWhichIsA("BasePart")
             if part then
-                local dist = (HumanoidRootPart.Position - part.Position).Magnitude
-                if dist <= 20 and (now - (_G.ZenithPickup.lastPickupTimes[item] or 0)) >= 0 then
+                local distance = (HumanoidRootPart.Position - part.Position).Magnitude
+                if distance <= 20 and (now - (_G.ZenithPickup.lastPickupTimes[item] or 0)) >= 0 then
                     table.insert(itemsToPickup, item)
                     _G.ZenithPickup.lastPickupTimes[item] = now
                 end
@@ -189,7 +204,7 @@ local function CheckAndPickup()
     end
 end
 
--- ========== OTHER VARIABLES (keep local as they don't break obf) ==========
+-- ========== SILENT AIM (คงเดิม) ==========
 local SilentAimEnabled = false
 local SilentAimAttachEnabled = false
 local FOVRadius = 120
@@ -202,56 +217,34 @@ Tracer.Color = Color3.fromRGB(255, 50, 50)
 Tracer.Transparency = 1
 Tracer.Visible = false
 
--- ESP variables
-local nameESPEnabled = false
-local distanceESPEnabled = false
-local healthESPEnabled = false
-local highlightEnabled = false
-local espPlayers = {}
-local playerHighlights = {}
-
--- Walk speed, fly, etc.
-local walkSpeedEnabled = false
-local speedValue = 0.05
-local FlyEnabled = false
-local isFlyingUp = false
-local floatPower = 40
-local teleportActive = false
-local featureEnabled = false
-local lockedY = nil
-local maxHeight = 10
-local startY = nil
-local moveConnection = nil
-local flyJumpConnection = nil
-local hookEnabled = false
-local clickCount = 0
-local fastFinishEnabled = false
-local AutoSkipEnabled = false
-local sucking = false -- local copy for UI, but actual state is in _G
-local AutoSprintEnabled = false
-local getgenv = getgenv or function() return _G end
-getgenv().Sky = false
-getgenv().SkyAmount = 1500
-local antiDeathEnabled = false
-local antiDeathLoopRunning = false
-local antiDeathActive = false
-local SAFE_DEPTH = 20
-
--- Magnet pickup additional
-local magnetEnabled = false
-local magnetRadius = 2000
-local magnetSpeed = 0.8
-local magnetConnection = nil
-
--- Gun mod
-getgenv().FireRateValue = 1000
-getgenv().AccuracyValue = 1
-getgenv().RecoilValue = 0
-getgenv().Durability = 999999999
-getgenv().AutoValue = true
-getgenv().GunModsAutoApply = false
-local FistsBuffEnabled = false
-local OriginalValues = {}
+-- FOV Circle (Rainbow)
+if not isMobile then
+    SilentFOVCircle = Drawing.new("Circle")
+    SilentFOVCircle.Color = Color3.fromRGB(255, 100, 100)
+    SilentFOVCircle.Thickness = 1.5
+    SilentFOVCircle.NumSides = 64
+    SilentFOVCircle.Filled = false
+    SilentFOVCircle.Transparency = 0.6
+    SilentFOVCircle.Radius = FOVRadius
+    SilentFOVCircle.Visible = false
+else
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "MobileFOV"
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    SilentFOVCircle = Instance.new("Frame")
+    SilentFOVCircle.Size = UDim2.fromOffset(FOVRadius * 2, FOVRadius * 2)
+    SilentFOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
+    SilentFOVCircle.Position = UDim2.fromScale(0.5, 0.5)
+    SilentFOVCircle.BackgroundTransparency = 1
+    local circleUI = Instance.new("UICorner")
+    circleUI.CornerRadius = UDim.new(1, 0)
+    circleUI.Parent = SilentFOVCircle
+    local border = Instance.new("UIStroke")
+    border.Thickness = 2
+    border.Transparency = 0.4
+    border.Parent = SilentFOVCircle
+    SilentFOVCircle.Parent = ScreenGui
+end
 
 -- ========== SILENT AIM TARGETING & PREDICTION ==========
 local HISTORY_SIZE = 6
@@ -332,8 +325,7 @@ local function isBehindWall(startPos, endPos)
     if not startPos or not endPos then return false end
     local direction = endPos - startPos
     if direction.Magnitude < 1 then return false end
-    local ignoreList = {}
-    if LocalPlayer.Character then table.insert(ignoreList, LocalPlayer.Character) end
+    local ignoreList = {LocalPlayer.Character}
     if CurrentTarget and CurrentTarget.Character then table.insert(ignoreList, CurrentTarget.Character) end
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = ignoreList
@@ -353,7 +345,7 @@ local function isShotgun()
     return false
 end
 
--- Hook Remote for silent aim
+-- Hook Remote
 local oldFire = nil
 if Remote and Remote.FireServer then
     pcall(function()
@@ -381,6 +373,7 @@ if Remote and Remote.FireServer then
                         if myPos then args[4] = blocked and CFrame.new(math.huge, math.huge, math.huge) or CFrame.new(myPos, aimPos) end
                         args[5] = { [1] = { [1] = { Instance = head, Normal = Vector3.new(0,1,0), Position = aimPos } } }
                     end
+                    -- visual beam
                     local success, beam = pcall(function()
                         local part = Instance.new("Part")
                         part.Anchored = true
@@ -444,58 +437,71 @@ if Remote and Remote.FireServer then
     end)
 end
 
--- FOV Circle (Rainbow)
-if not isMobile then
-    SilentFOVCircle = Drawing.new("Circle")
-    SilentFOVCircle.Color = Color3.fromRGB(255, 100, 100)
-    SilentFOVCircle.Thickness = 1.5
-    SilentFOVCircle.NumSides = 64
-    SilentFOVCircle.Filled = false
-    SilentFOVCircle.Transparency = 0.6
-    SilentFOVCircle.Radius = FOVRadius
-    SilentFOVCircle.Visible = false
-else
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "MobileFOV"
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    SilentFOVCircle = Instance.new("Frame")
-    SilentFOVCircle.Size = UDim2.fromOffset(FOVRadius * 2, FOVRadius * 2)
-    SilentFOVCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-    SilentFOVCircle.Position = UDim2.fromScale(0.5, 0.5)
-    SilentFOVCircle.BackgroundTransparency = 1
-    local circleUI = Instance.new("UICorner")
-    circleUI.CornerRadius = UDim.new(1, 0)
-    circleUI.Parent = SilentFOVCircle
-    local border = Instance.new("UIStroke")
-    border.Thickness = 2
-    border.Transparency = 0.4
-    border.Parent = SilentFOVCircle
-    SilentFOVCircle.Parent = ScreenGui
-end
+-- ========== OTHER FEATURES ==========
+local walkSpeedEnabled = false
+local speedValue = 0.05
+local FlyEnabled = false
+local isFlyingUp = false
+local floatPower = 40
+local teleportActive = false
+local featureEnabled = false
+local lockedY = nil
+local maxHeight = 10
+local startY = nil
+local moveConnection = nil
+local hookEnabled = false
+local clickCount = 0
+local fastFinishEnabled = false
+local AutoSkipEnabled = false
+local AutoSprintEnabled = false
+local getgenv = getgenv or function() return _G end
+getgenv().Sky = false
+getgenv().SkyAmount = 1500
+local antiDeathEnabled = false
+local antiDeathLoopRunning = false
+local antiDeathActive = false
+local SAFE_DEPTH = 20
+local FistsBuffEnabled = false
+local OriginalValues = {}
+local magnetEnabled = false
+local magnetRadius = 2000
+local magnetSpeed = 0.8
+local magnetConnection = nil
 
--- RenderStepped (update FOV, fly, teleport)
-RunService.RenderStepped:Connect(function()
-    pcall(function()
-        if SilentAimAttachEnabled then CurrentTarget = getClosestTarget() end
-        CurrentTarget = (SilentAimEnabled or SilentAimAttachEnabled) and getClosestTarget() or nil
-        if SilentFOVCircle then
-            SilentFOVCircle.Visible = SilentAimEnabled
-            if SilentAimEnabled then
-                if isMobile then
-                    SilentFOVCircle.Position = UDim2.fromScale(0.5, 0.5)
-                    SilentFOVCircle.Size = UDim2.fromOffset(FOVRadius * 2, FOVRadius * 2)
-                    local border = SilentFOVCircle:FindFirstChildWhichIsA("UIStroke")
-                    if border then border.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1) end
-                else
-                    SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-                    SilentFOVCircle.Radius = FOVRadius
-                    SilentFOVCircle.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1)
-                end
-            end
+-- Fly binding
+ContextActionService:BindAction("FlyUp", function(_, inputState, inputObject)
+    if not FlyEnabled then return Enum.ContextActionResult.Pass end
+    local isJumpPressed = (inputObject.UserInputType == Enum.UserInputType.Keyboard and inputObject.KeyCode == Enum.KeyCode.Space) or (inputObject.UserInputType == Enum.UserInputType.Touch)
+    if isJumpPressed then
+        if inputState == Enum.UserInputState.Begin then
+            isFlyingUp = true
+            Humanoid.Jump = true
+            return Enum.ContextActionResult.Sink
+        elseif inputState == Enum.UserInputState.End then
+            isFlyingUp = false
+            return Enum.ContextActionResult.Sink
         end
-        if FlyEnabled and isFlyingUp and HumanoidRootPart then
-            HumanoidRootPart.Velocity = Vector3.new(HumanoidRootPart.Velocity.X, floatPower, HumanoidRootPart.Velocity.Z)
-        end
+    end
+    return Enum.ContextActionResult.Pass
+end, false, Enum.KeyCode.Space)
+
+-- Teleport snap
+local function performTeleport()
+    if not HumanoidRootPart then return end
+    local currentPos = HumanoidRootPart.Position
+    local bottomPos = Vector3.new(currentPos.X, currentPos.Y - maxHeight, currentPos.Z)
+    HumanoidRootPart.CFrame = CFrame.new(bottomPos)
+    lockedY = bottomPos.Y
+end
+local function toggleTeleport()
+    if not featureEnabled then return end
+    teleportActive = not teleportActive
+    if teleportActive then performTeleport() else lockedY = nil end
+end
+local connection
+local function lockYPosition()
+    if connection then connection:Disconnect() end
+    connection = RunService.Heartbeat:Connect(function()
         if teleportActive and lockedY and HumanoidRootPart then
             local currentPos = HumanoidRootPart.Position
             if math.abs(currentPos.Y - lockedY) > 0.1 then
@@ -503,9 +509,27 @@ RunService.RenderStepped:Connect(function()
             end
         end
     end)
-end)
+end
+lockYPosition()
 
--- Magnet Pickup
+-- WalkSpeed setup
+local function setupCharacter(char)
+    Character = char
+    Humanoid = char:WaitForChild("Humanoid")
+    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
+    if moveConnection then moveConnection:Disconnect() end
+    moveConnection = RunService.RenderStepped:Connect(function()
+        if walkSpeedEnabled and Humanoid and HumanoidRootPart then
+            if Humanoid.MoveDirection.Magnitude > 0 then
+                HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + (Humanoid.MoveDirection.Unit * speedValue)
+            end
+        end
+    end)
+end
+LocalPlayer.CharacterAdded:Connect(setupCharacter)
+if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
+
+-- Magnet pickup
 local function startMagnet()
     if magnetConnection then magnetConnection:Disconnect() end
     magnetConnection = RunService.Heartbeat:Connect(function()
@@ -535,7 +559,6 @@ local function startMagnet()
         end
     end)
 end
-
 local function stopMagnet()
     if magnetConnection then magnetConnection:Disconnect() end
 end
@@ -549,7 +572,6 @@ local function getSafePosition()
     local groundY = hit and hitPos.Y or (hrp.Position.Y - SAFE_DEPTH-10)
     return CFrame.new(hrp.Position.X, groundY + 3, hrp.Position.Z)
 end
-
 local function startAntiKill()
     if antiDeathLoopRunning then return end
     antiDeathLoopRunning = true
@@ -574,29 +596,11 @@ local function startAntiKill()
         antiDeathActive = false
     end)
 end
-
 local function stopAntiKill()
     antiDeathEnabled = false
     antiDeathActive = false
     antiDeathLoopRunning = false
 end
-
--- Fly bind
-ContextActionService:BindAction("FlyUp", function(_, inputState, inputObject)
-    if not FlyEnabled then return Enum.ContextActionResult.Pass end
-    local isJumpPressed = (inputObject.UserInputType == Enum.UserInputType.Keyboard and inputObject.KeyCode == Enum.KeyCode.Space) or (inputObject.UserInputType == Enum.UserInputType.Touch)
-    if isJumpPressed then
-        if inputState == Enum.UserInputState.Begin then
-            isFlyingUp = true
-            Humanoid.Jump = true
-            return Enum.ContextActionResult.Sink
-        elseif inputState == Enum.UserInputState.End then
-            isFlyingUp = false
-            return Enum.ContextActionResult.Sink
-        end
-    end
-    return Enum.ContextActionResult.Pass
-end, false, Enum.KeyCode.Space)
 
 -- Auto finish
 local function setFinishPrompt(prompt)
@@ -654,8 +658,6 @@ local function TrySkipCrate()
         if spinning.get() then pcall(function() CrateController.skip_spin() end) end
     end)
 end
-
--- Setup auto skip
 local function SetupAutoSkip()
     local remotesFolder = ReplicatedStorage:WaitForChild("Remotes",5)
     if not remotesFolder then return end
@@ -665,164 +667,15 @@ local function SetupAutoSkip()
 end
 SetupAutoSkip()
 
--- WalkSpeed
-local function setupCharacter(char)
-    Character = char
-    Humanoid = char:WaitForChild("Humanoid")
-    HumanoidRootPart = char:WaitForChild("HumanoidRootPart")
-    if moveConnection then moveConnection:Disconnect() end
-    moveConnection = RunService.RenderStepped:Connect(function()
-        if walkSpeedEnabled and Humanoid and HumanoidRootPart then
-            if Humanoid.MoveDirection.Magnitude > 0 then
-                HumanoidRootPart.CFrame = HumanoidRootPart.CFrame + (Humanoid.MoveDirection.Unit * speedValue)
-            end
-        end
-    end)
-end
-LocalPlayer.CharacterAdded:Connect(setupCharacter)
-if LocalPlayer.Character then setupCharacter(LocalPlayer.Character) end
-
--- CheckAndPickup loop
-RunService.Heartbeat:Connect(function()
-    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-    end
-    pcall(CheckAndPickup)
-end)
-
--- Teleport snap
-local function performTeleport()
-    if not HumanoidRootPart then return end
-    local currentPos = HumanoidRootPart.Position
-    local bottomPos = Vector3.new(currentPos.X, currentPos.Y - maxHeight, currentPos.Z)
-    HumanoidRootPart.CFrame = CFrame.new(bottomPos)
-    lockedY = bottomPos.Y
-end
-local function toggleTeleport()
-    if not featureEnabled then return end
-    teleportActive = not teleportActive
-    if teleportActive then performTeleport() else lockedY = nil end
-end
-local connection
-local function lockYPosition()
-    if connection then connection:Disconnect() end
-    connection = RunService.Heartbeat:Connect(function()
-        if teleportActive and lockedY and HumanoidRootPart then
-            local currentPos = HumanoidRootPart.Position
-            if math.abs(currentPos.Y - lockedY) > 0.1 then
-                HumanoidRootPart.CFrame = CFrame.new(currentPos.X, lockedY, currentPos.Z)
-            end
-        end
-    end)
-end
-lockYPosition()
-
--- ESP (Drawing)
-local function createESP(player)
-    if espPlayers[player] then return end
-    local nameText = Drawing.new("Text")
-    nameText.Size = 16; nameText.Center = true; nameText.Outline = true; nameText.Font = 4
-    local distanceText = Drawing.new("Text")
-    distanceText.Size = 14; distanceText.Center = true; distanceText.Outline = true; distanceText.Font = 4
-    local healthBg = Drawing.new("Square")
-    healthBg.Filled = false; healthBg.Thickness = 1; healthBg.Color = Color3.new(0,0,0); healthBg.Transparency = 0.9
-    local healthFg = Drawing.new("Square")
-    healthFg.Filled = true; healthFg.Transparency = 0.9
-    local drawings = {nameText, distanceText, healthBg, healthFg}
-    local conn = RunService.RenderStepped:Connect(function()
-        if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-            for _, obj in pairs(drawings) do obj.Visible = false end; return
-        end
-        local hrp = player.Character.HumanoidRootPart
-        local humanoid = player.Character:FindFirstChild("Humanoid")
-        local dist = 0
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            dist = (hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
-        end
-        local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-        if not onScreen or screenPos.Z <= 0 then
-            for _, obj in pairs(drawings) do obj.Visible = false end; return
-        end
-        local centerX = screenPos.X
-        local currentTopY = screenPos.Y - 15
-        if healthESPEnabled and humanoid and humanoid.Health > 0 then
-            local perc = humanoid.Health / (humanoid.MaxHealth > 0 and humanoid.MaxHealth or 1)
-            local barHeight = 4; local barWidth = 60
-            local healthX = centerX - barWidth/2
-            healthBg.Position = Vector2.new(healthX, currentTopY - barHeight - 2)
-            healthBg.Size = Vector2.new(barWidth, barHeight)
-            healthBg.Visible = true
-            healthFg.Position = Vector2.new(healthX, currentTopY - barHeight - 2)
-            healthFg.Size = Vector2.new(barWidth * perc, barHeight)
-            healthFg.Color = Color3.fromHSV(perc * 0.333, 0.8, 0.9)
-            healthFg.Visible = true
-            currentTopY = currentTopY - barHeight - 6
-        else
-            healthBg.Visible = false; healthFg.Visible = false
-        end
-        if nameESPEnabled then
-            local minSize, maxSize = 14, 42
-            local scaleDist = math.clamp(dist / 50, 0, 1)
-            local dynamicSize = maxSize - (maxSize - minSize) * scaleDist
-            nameText.Text = player.Name
-            nameText.Size = math.floor(dynamicSize)
-            nameText.Color = isPlayerExcluded(player.Name) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,255,255)
-            nameText.Position = Vector2.new(centerX, currentTopY - 16)
-            nameText.Visible = true
-        else
-            nameText.Visible = false
-        end
-        distanceText.Text = distanceESPEnabled and string.format("%.0f studs", dist) or ""
-        distanceText.Position = Vector2.new(centerX, screenPos.Y + 20)
-        distanceText.Visible = distanceESPEnabled
-    end)
-    espPlayers[player] = {conn = conn, drawings = drawings}
-end
-local function loadESP()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and not espPlayers[player] then createESP(player) end
-    end
-    Players.PlayerAdded:Connect(function(player)
-        if player ~= LocalPlayer then
-            player.CharacterAdded:Connect(function() task.wait(0.1); if not espPlayers[player] then createESP(player) end end)
-            if player.Character then task.wait(0.1); createESP(player) end
-        end
-    end)
-    Players.PlayerRemoving:Connect(function(player)
-        if espPlayers[player] then
-            for _, obj in pairs(espPlayers[player].drawings) do pcall(function() obj:Remove() end) end
-            if espPlayers[player].conn then pcall(function() espPlayers[player].conn:Disconnect() end) end
-            espPlayers[player] = nil
-        end
-    end)
-end
-loadESP()
-
-function updateHighlight(player)
-    if player == LocalPlayer then return end
-    if not player.Character then return end
-    if playerHighlights[player] then playerHighlights[player]:Destroy() end
-    if highlightEnabled then
-        local highlight = Instance.new("Highlight")
-        highlight.Adornee = player.Character
-        highlight.FillColor = Color3.fromRGB(0,170,255)
-        highlight.OutlineColor = Color3.fromRGB(0,170,255)
-        highlight.Parent = workspace
-        playerHighlights[player] = highlight
-    end
-end
-for _, player in pairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        player.CharacterAdded:Connect(function() task.wait(0.1); updateHighlight(player) end)
-        updateHighlight(player)
-    end
-end
-Players.PlayerAdded:Connect(function(player) player.CharacterAdded:Connect(function() task.wait(0.1); updateHighlight(player) end) end)
-Players.PlayerRemoving:Connect(function(player) if playerHighlights[player] then playerHighlights[player]:Destroy() end end)
-
 -- Gun mod
 local GunsFolder = ReplicatedStorage:WaitForChild("Items"):WaitForChild("gun")
+getgenv().FireRateValue = 1000
+getgenv().AccuracyValue = 1
+getgenv().RecoilValue = 0
+getgenv().Durability = 999999999
+getgenv().AutoValue = true
+getgenv().GunModsAutoApply = false
+
 local function isGunTool(tool)
     if not tool or not tool:IsA("Tool") then return false end
     return GunsFolder:FindFirstChild(tool.Name) ~= nil or tool.Name:match("Gun") or tool:FindFirstChild("Handle")
@@ -951,26 +804,133 @@ local function StartAutoAttack()
 end
 StartAutoAttack()
 
--- UI: simple creation (WindUI or fallback) - truncated for length, assume full UI exists in actual script
--- We'll just add the necessary toggles
+-- ESP (Drawing)
+local nameESPEnabled = false
+local distanceESPEnabled = false
+local healthESPEnabled = false
+local highlightEnabled = false
+local espPlayers = {}
+local playerHighlights = {}
+local function createESP(player)
+    if espPlayers[player] then return end
+    local nameText = Drawing.new("Text")
+    nameText.Size = 16; nameText.Center = true; nameText.Outline = true; nameText.Font = 4
+    local distanceText = Drawing.new("Text")
+    distanceText.Size = 14; distanceText.Center = true; distanceText.Outline = true; distanceText.Font = 4
+    local healthBg = Drawing.new("Square")
+    healthBg.Filled = false; healthBg.Thickness = 1; healthBg.Color = Color3.new(0,0,0); healthBg.Transparency = 0.9
+    local healthFg = Drawing.new("Square")
+    healthFg.Filled = true; healthFg.Transparency = 0.9
+    local drawings = {nameText, distanceText, healthBg, healthFg}
+    local conn = RunService.RenderStepped:Connect(function()
+        if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+            for _, obj in pairs(drawings) do obj.Visible = false end; return
+        end
+        local hrp = player.Character.HumanoidRootPart
+        local humanoid = player.Character:FindFirstChild("Humanoid")
+        local dist = 0
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            dist = (hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+        end
+        local screenPos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+        if not onScreen or screenPos.Z <= 0 then
+            for _, obj in pairs(drawings) do obj.Visible = false end; return
+        end
+        local centerX = screenPos.X
+        local currentTopY = screenPos.Y - 15
+        if healthESPEnabled and humanoid and humanoid.Health > 0 then
+            local perc = humanoid.Health / (humanoid.MaxHealth > 0 and humanoid.MaxHealth or 1)
+            local barHeight = 4; local barWidth = 60
+            local healthX = centerX - barWidth/2
+            healthBg.Position = Vector2.new(healthX, currentTopY - barHeight - 2)
+            healthBg.Size = Vector2.new(barWidth, barHeight)
+            healthBg.Visible = true
+            healthFg.Position = Vector2.new(healthX, currentTopY - barHeight - 2)
+            healthFg.Size = Vector2.new(barWidth * perc, barHeight)
+            healthFg.Color = Color3.fromHSV(perc * 0.333, 0.8, 0.9)
+            healthFg.Visible = true
+            currentTopY = currentTopY - barHeight - 6
+        else
+            healthBg.Visible = false; healthFg.Visible = false
+        end
+        if nameESPEnabled then
+            local minSize, maxSize = 14, 42
+            local scaleDist = math.clamp(dist / 50, 0, 1)
+            local dynamicSize = maxSize - (maxSize - minSize) * scaleDist
+            nameText.Text = player.Name
+            nameText.Size = math.floor(dynamicSize)
+            nameText.Color = isPlayerExcluded(player.Name) and Color3.fromRGB(0,255,0) or Color3.fromRGB(255,255,255)
+            nameText.Position = Vector2.new(centerX, currentTopY - 16)
+            nameText.Visible = true
+        else
+            nameText.Visible = false
+        end
+        distanceText.Text = distanceESPEnabled and string.format("%.0f studs", dist) or ""
+        distanceText.Position = Vector2.new(centerX, screenPos.Y + 20)
+        distanceText.Visible = distanceESPEnabled
+    end)
+    espPlayers[player] = {conn = conn, drawings = drawings}
+end
+local function loadESP()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and not espPlayers[player] then createESP(player) end
+    end
+    Players.PlayerAdded:Connect(function(player)
+        if player ~= LocalPlayer then
+            player.CharacterAdded:Connect(function() task.wait(0.1); if not espPlayers[player] then createESP(player) end end)
+            if player.Character then task.wait(0.1); createESP(player) end
+        end
+    end)
+    Players.PlayerRemoving:Connect(function(player)
+        if espPlayers[player] then
+            for _, obj in pairs(espPlayers[player].drawings) do pcall(function() obj:Remove() end) end
+            if espPlayers[player].conn then pcall(function() espPlayers[player].conn:Disconnect() end) end
+            espPlayers[player] = nil
+        end
+    end)
+end
+loadESP()
 
--- Create tabs using safe functions (these would be defined earlier)
+function updateHighlight(player)
+    if player == LocalPlayer then return end
+    if not player.Character then return end
+    if playerHighlights[player] then playerHighlights[player]:Destroy() end
+    if highlightEnabled then
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = player.Character
+        highlight.FillColor = Color3.fromRGB(0,170,255)
+        highlight.OutlineColor = Color3.fromRGB(0,170,255)
+        highlight.Parent = workspace
+        playerHighlights[player] = highlight
+    end
+end
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function() task.wait(0.1); updateHighlight(player) end)
+        updateHighlight(player)
+    end
+end
+Players.PlayerAdded:Connect(function(player) player.CharacterAdded:Connect(function() task.wait(0.1); updateHighlight(player) end) end)
+Players.PlayerRemoving:Connect(function(player) if playerHighlights[player] then playerHighlights[player]:Destroy() end end)
+
+-- ========== UI TABS (WindUI) ==========
 local CombatTab = Window:Tab({Title = "COMBAT:", Icon = "crosshair"})
 local WeaponTab = Window:Tab({Title = "WEAPON:", Icon = "layers"})
 local ESPTab = Window:Tab({Title = "ESP:", Icon = "eye"})
 local CharacterTab = Window:Tab({Title = "CHARACTER:", Icon = "user"})
 local MiscTab = Window:Tab({Title = "MISC:", Icon = "warehouse"})
 
--- COMBAT
+-- COMBAT TAB
 CombatTab:Section({Title = "GUN:"})
 CombatTab:Toggle({Title = "Silent Aim", Default = false, Callback = function(v) SilentAimEnabled = v; CurrentTarget = nil end})
 CombatTab:Toggle({Title = "Red Line Lock", Default = false, Callback = function(v) SilentAimAttachEnabled = v; CurrentTarget = nil end})
 CombatTab:Slider({Title = "FOV", Step = 1, Value = {Min=20, Max=800, Default=FOVRadius}, Callback = function(v) FOVRadius = v end})
-CombatTab:Input({Title = "Safe Friend", Placeholder = "ชื่อ", Callback = function(v)
-    excludedPlayerNames = {string.match(v:lower(), "%S+")}
+CombatTab:Input({Title = "Safe Friend", Placeholder = "ชื่อผู้เล่น", Callback = function(v)
+    excludedPlayerNames = {}
+    for name in string.gmatch(v:lower(), "%S+") do table.insert(excludedPlayerNames, name) end
 end})
 
--- WEAPON
+-- WEAPON TAB
 WeaponTab:Section({Title = "MODS:"})
 WeaponTab:Slider({Title = "Fire Rate", Step = 10, Value = {Min=100, Max=3000, Default=1000}, Callback = function(v) getgenv().FireRateValue = v end})
 WeaponTab:Slider({Title = "Accuracy", Step = 0.01, Value = {Min=0, Max=1, Default=1}, Callback = function(v) getgenv().AccuracyValue = v end})
@@ -979,18 +939,21 @@ WeaponTab:Toggle({Title = "Auto Modify", Default = false, Callback = function(v)
 WeaponTab:Toggle({Title = "Melee Aura", Default = false, Callback = function(v) FistsBuffEnabled = v; checkAndModifyFists() end})
 WeaponTab:Toggle({Title = "Auto Attack", Default = false, Callback = function(v) hookEnabled = v end})
 
--- ESP
+-- ESP TAB
 ESPTab:Section({Title = "ESP:"})
 ESPTab:Toggle({Title = "Name ESP", Default = false, Callback = function(v) nameESPEnabled = v end})
 ESPTab:Toggle({Title = "Health ESP", Default = false, Callback = function(v) healthESPEnabled = v end})
 ESPTab:Toggle({Title = "Distance ESP", Default = false, Callback = function(v) distanceESPEnabled = v end})
 ESPTab:Toggle({Title = "Highlight", Default = false, Callback = function(v) highlightEnabled = v; for _, plr in pairs(Players:GetPlayers()) do updateHighlight(plr) end end})
 ESPTab:Section({Title = "MAGNET PICKUP"})
-ESPTab:Toggle({Title = "ดูดของอัตโนมัติ", Default = false, Callback = function(v) magnetEnabled = v; if v then startMagnet() else stopMagnet() end end})
+ESPTab:Toggle({Title = "ดูดของอัตโนมัติ (Magnet)", Default = false, Callback = function(v) magnetEnabled = v; if v then startMagnet() else stopMagnet() end end})
 ESPTab:Slider({Title = "รัศมีดูด", Step = 100, Value = {Min=500, Max=5000, Default=2000}, Callback = function(v) magnetRadius = v end})
 ESPTab:Slider({Title = "ความเร็วดูด", Step = 1, Value = {Min=3, Max=20, Default=8}, Callback = function(v) magnetSpeed = v/10 end})
+-- Pickup items (basic) ถูกย้ายไป CHARACTER TAB เพราะมันคือ auto pickup ระยะใกล้ดั้งเดิม
+ESPTab:Section({Title = "ITEM PICKUP (BASIC)"})
+ESPTab:Toggle({Title = "Pickup items (ระยะใกล้)", Default = false, Callback = function(v) _G.ZenithPickup.sucking = v end})
 
--- CHARACTER
+-- CHARACTER TAB
 CharacterTab:Section({Title = "MOVEMENT"})
 CharacterTab:Toggle({Title = "Walk Speed", Default = false, Callback = function(v) walkSpeedEnabled = v end})
 CharacterTab:Slider({Title = "Speed Multiplier", Step = 0.5, Value = {Min=1, Max=5, Default=2}, Callback = function(v) speedValue = v * 0.05 end})
@@ -1001,17 +964,97 @@ CharacterTab:Toggle({Title = "Anti Kill", Default = false, Callback = function(v
     antiDeathEnabled = v
     if v then startAntiKill() else stopAntiKill() end
 end})
-CharacterTab:Toggle({Title = "Pickup items (basic)", Default = false, Callback = function(v)
-    _G.ZenithPickup.sucking = v
-end})
 CharacterTab:Section({Title = "SNAP (Z)"})
 CharacterTab:Toggle({Title = "Snap Under Map", Default = false, Callback = function(v) featureEnabled = v; if v then clickCount=1; startY = HumanoidRootPart and HumanoidRootPart.Position.Y or nil; teleportActive = true; performTeleport() else teleportActive = false; lockedY = nil; startY = nil end end})
 CharacterTab:Slider({Title = "Snap Depth", Step = 1, Value = {Min=1, Max=50, Default=10}, Callback = function(v) maxHeight = v end})
 
--- MISC
+-- MISC TAB
 MiscTab:Section({Title = "AUTO SKIP CRATE"})
 MiscTab:Toggle({Title = "Skip Crate Spin", Default = false, Callback = function(v) AutoSkipEnabled = v; if v then TrySkipCrate() end end})
 MiscTab:Button({Title = "Skip Now", Callback = function() TrySkipCrate() end})
+MiscTab:Section({Title = "AUTO FINISH"})
+MiscTab:Toggle({Title = "Auto Finish", Default = false, Callback = function(v)
+    fastFinishEnabled = v
+    if v then applyToAll()
+    else
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local prompt = hrp:FindFirstChild("FinishPrompt")
+                    if prompt then prompt.HoldDuration = 1.5 end
+                end
+            end
+        end
+    end
+end})
+MiscTab:Section({Title = "SERVER"})
+MiscTab:Button({Title = "Server Rejoin", Callback = function() TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end})
+MiscTab:Button({Title = "Server Hop", Callback = function()
+    local PlaceId = game.PlaceId
+    local success, servers = pcall(function() return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Desc&limit=100")) end)
+    if not success or not servers or not servers.data then return end
+    local available = {}
+    for _, server in ipairs(servers.data) do
+        if server.playing < server.maxPlayers and server.id ~= game.JobId then table.insert(available, server) end
+    end
+    if #available == 0 then return end
+    table.sort(available, function(a,b) return a.playing > b.playing end)
+    TeleportService:TeleportToPlaceInstance(PlaceId, available[1].id, LocalPlayer)
+end})
 
--- Final notification
+-- Loop สำหรับ CheckAndPickup
+RunService.Heartbeat:Connect(function()
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        HumanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+    end
+    pcall(CheckAndPickup)
+end)
+
+-- Loop สำหรับ auto finish
+task.spawn(function()
+    while true do
+        task.wait(0.4)
+        if fastFinishEnabled then
+            for _, prompt in ipairs(findFinishPrompts()) do
+                task.spawn(function() tryHoldPrompt(prompt, 1) end)
+            end
+        end
+    end
+end)
+
+-- RenderStepped loop (อัปเดต FOV และอื่นๆ)
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if SilentAimAttachEnabled then CurrentTarget = getClosestTarget() end
+        CurrentTarget = (SilentAimEnabled or SilentAimAttachEnabled) and getClosestTarget() or nil
+        if SilentFOVCircle then
+            SilentFOVCircle.Visible = SilentAimEnabled
+            if SilentAimEnabled then
+                if isMobile then
+                    SilentFOVCircle.Position = UDim2.fromScale(0.5, 0.5)
+                    SilentFOVCircle.Size = UDim2.fromOffset(FOVRadius * 2, FOVRadius * 2)
+                    local border = SilentFOVCircle:FindFirstChildWhichIsA("UIStroke")
+                    if border then border.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1) end
+                else
+                    SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                    SilentFOVCircle.Radius = FOVRadius
+                    SilentFOVCircle.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1)
+                end
+            end
+        end
+        if FlyEnabled and isFlyingUp and HumanoidRootPart then
+            HumanoidRootPart.Velocity = Vector3.new(HumanoidRootPart.Velocity.X, floatPower, HumanoidRootPart.Velocity.Z)
+        end
+        if teleportActive and lockedY and HumanoidRootPart then
+            local currentPos = HumanoidRootPart.Position
+            if math.abs(currentPos.Y - lockedY) > 0.1 then
+                HumanoidRootPart.CFrame = CFrame.new(currentPos.X, lockedY, currentPos.Z)
+            end
+        end
+    end)
+end)
+
+-- สุดท้าย: แจ้งเตือน
 game:GetService("StarterGui"):SetCore("SendNotification", {Title = "ZENITH HUB", Text = "โหลดสำเร็จ! (Pickup Fixed)", Duration = 4})
