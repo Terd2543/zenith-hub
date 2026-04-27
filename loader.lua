@@ -1,3 +1,23 @@
+-- แก้ไขให้รองรับมือถือ และเพิ่ม toggle invisible (Desync) ในแทบ MISC
+local raknetLib = raknet
+local desyncEnabled = false
+
+-- ฟังก์ชันสำหรับเปิด/ปิดโหมดล่องหน (Desync)
+local function setDesync(state)
+    if raknetLib then
+        if state then
+            raknetLib.desync(true)
+            print("[Success] เปิดโหมดล่องหน (Desync) เรียบร้อยแล้ว")
+            print("[Note] จะกลับมาเห็นตัวอีกครั้ง ต้องปิด toggle นี้ หรือออกจากเกม")
+        else
+            raknetLib.desync(false)
+            print("[Success] ปิดโหมดล่องหน (Desync) แล้ว")
+        end
+    else
+        warn("[Error] ไม่พบ Raknet library ใน Executor นี้")
+    end
+end
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -116,7 +136,7 @@ local maxHeight = 10
 local startY = nil
 local moveConnection = nil
 local flyJumpConnection = nil
-local hookEnabled = state
+local hookEnabled = false   -- แก้จาก state (undefined)
 local clickCount = 0
 local fastFinishEnabled = false
 local Active = false
@@ -161,6 +181,7 @@ local FistsBuffEnabled = false
 local OriginalValues = {}
 local BOX_SIZE_SCALE = 100
 local playerHighlights = {}
+local highlightEnabled = false   -- เพิ่มตัวแปร highlight
 
 local CounterTable
 pcall(
@@ -316,7 +337,6 @@ local function isDowned()
         return false
     end
 
-
     if hum.Health <= 0 then
         return false
     end
@@ -437,7 +457,6 @@ local function CheckAndPickup()
         for _, item in ipairs(itemsToPickup) do
             spawn(
                 function()
-
                     NetGet("pickup_dropped_item", item)
                 end
             )
@@ -740,7 +759,6 @@ local function registerItems(folder)
             local rarity = tool:GetAttribute("RarityName") or "Common"
             local imageId = tool:GetAttribute("ImageId") or "rbxassetid://7072725737"
 
-
             if handle then
                 local mesh = handle:FindFirstChildOfClass("SpecialMesh")
                 if mesh and mesh.MeshId ~= "" then
@@ -750,16 +768,13 @@ local function registerItems(folder)
                 end
             end
 
-
             if not key and itemId and itemId ~= "" and itemId ~= tool.Name then
                 key = "ITEMID_" .. itemId .. "_RARITY_" .. rarity
             end
 
-
             if not key then
                 key = "NAME_" .. displayName .. "_" .. tool.Name .. "_RARITY_" .. rarity
             end
-
 
             if WeaponDB[key] then
                 warn(
@@ -1081,7 +1096,6 @@ local function TrySkipCrate()
                 return
             end
 
-
             local waited = 0
             while not spinning.get() do
                 if waited > 3 then
@@ -1127,14 +1141,12 @@ local function createESP(player)
         return
     end
 
-
     local nameText = Drawing.new("Text")
     nameText.Size = 16
     nameText.Center = true
     nameText.Outline = true
     nameText.Color = isPlayerExcluded(player.Name) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
     nameText.Font = 4
-
 
     local distanceText = Drawing.new("Text")
     distanceText.Size = 14
@@ -1143,14 +1155,12 @@ local function createESP(player)
     distanceText.Color = Color3.fromRGB(255, 255, 255)
     distanceText.Font = 4
 
-
     local healthBg = Drawing.new("Square")
     healthBg.Filled = false
     healthBg.Thickness = 1
     healthBg.Color = Color3.fromRGB(0, 0, 0)
     healthBg.Transparency = 0.9
     healthBg.Visible = false
-
 
     local healthFg = Drawing.new("Square")
     healthFg.Filled = true
@@ -1187,7 +1197,6 @@ local function createESP(player)
             local centerX = screenPos.X
             local currentTopY = screenPos.Y - 15
 
-
             if healthESPEnabled and humanoid and humanoid.Health > 0 then
                 local perc = humanoid.Health / (humanoid.MaxHealth > 0 and humanoid.MaxHealth or 1)
                 local barHeight = 4
@@ -1208,8 +1217,6 @@ local function createESP(player)
                 healthBg.Visible = false
                 healthFg.Visible = false
             end
-
-
 
             if nameESPEnabled then
                 local minSize, maxSize = 14, 42
@@ -1288,13 +1295,13 @@ local function loadESP()
     )
 end
 
--- ========== สร้าง FOV Circle แบบสีรุ้ง (Rainbow) ==========
+-- ========== FOV Circle แบบสีรุ้ง (Rainbow) ==========
 if not isMobile then
     SilentFOVCircle = Drawing.new("Circle")
     SilentFOVCircle.Thickness = 1.4
     SilentFOVCircle.NumSides = 64
     SilentFOVCircle.Filled = false
-    SilentFOVCircle.Transparency = 0.6   -- ปรับความโปร่งใส (0-1)
+    SilentFOVCircle.Transparency = 0.6
     SilentFOVCircle.Radius = FOVRadius
     SilentFOVCircle.Visible = false
 else
@@ -1612,9 +1619,7 @@ RunService.RenderStepped:Connect(
                 end
                 CurrentTarget = (SilentAimEnabled or SilentAimAttachEnabled) and getClosestTarget() or nil
 
-
                 local TracerTarget = getClosestTarget()
-
 
                 if SilentFOVCircle then
                     SilentFOVCircle.Visible = SilentAimEnabled
@@ -1629,7 +1634,7 @@ RunService.RenderStepped:Connect(
                         else
                             SilentFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
                             SilentFOVCircle.Radius = FOVRadius
-                            SilentFOVCircle.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1)  -- Rainbow
+                            SilentFOVCircle.Color = Color3.fromHSV((tick() * 0.3) % 1, 1, 1)
                         end
                     end
                 end
@@ -1644,14 +1649,12 @@ RunService.RenderStepped:Connect(
                     if humanoid and humanoid.Health > 0 and targetPart then
                         local centerScreenPos = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
-
                         local newPos = targetPart.Position
                         TracerSmoothedPos = TracerSmoothedPos:Lerp(newPos, SMOOTH_ALPHA)
                         local targetPos = TracerSmoothedPos
 
                         local targetScreenPos, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
                         if targetOnScreen then
-
                             Tracer.Visible = true
                             Tracer.From = centerScreenPos
                             Tracer.To = Vector2.new(targetScreenPos.X, targetScreenPos.Y)
@@ -1686,7 +1689,6 @@ RunService.RenderStepped:Connect(
                             local left = Vector2.new(center.X - sizeX, center.Y)
                             local right = Vector2.new(center.X + sizeX, center.Y)
 
-
                             TracerESP[1].From, TracerESP[1].To = top, right
                             TracerESP[2].From, TracerESP[2].To = right, bottom
                             TracerESP[3].From, TracerESP[3].To = bottom, left
@@ -1720,7 +1722,6 @@ RunService.RenderStepped:Connect(
                     end
                     TracerSmoothedPos = Vector3.new()
                 end
-
 
                 if FlyEnabled and isFlyingUp and HumanoidRootPart then
                     local v = HumanoidRootPart.Velocity
@@ -1952,7 +1953,7 @@ Players.PlayerAdded:Connect(
         player.CharacterAdded:Connect(
             function(character)
                 if highlightEnabled then
-                    highlights[player] = createHighlight(character)
+                    updateHighlight(player) -- เรียกฟังก์ชันอัปเดตไฮไลต์
                 end
                 if espPlayers[player] and espPlayers[player].drawings then
                     local nameText = espPlayers[player].drawings[1]
@@ -1992,13 +1993,16 @@ task.spawn(
     function()
         while task.wait(1) do
             if highlightEnabled then
-                updateHighlights()
+                for _, player in pairs(Players:GetPlayers()) do
+                    updateHighlight(player)
+                end
             end
         end
     end
 )
 loadESP()
 
+-- ========== UI TABS ==========
 local Tab = Window:Tab({Title = "COMBAT:", Icon = "crosshair"})
 Tab:Section({Title = "GUN:"})
 local SilentToggle =
@@ -2009,7 +2013,6 @@ local SilentToggle =
         Callback = function(state)
             SilentAimEnabled = state
             CurrentTarget = nil
-
         end
     }
 )
@@ -2124,7 +2127,6 @@ local function applyGodGun(tool)
 
     pcall(
         function()
-
             tool:SetAttribute("fire_rate", getgenv().FireRateValue)
             tool:SetAttribute("accuracy", getgenv().AccuracyValue)
             tool:SetAttribute("Recoil", getgenv().RecoilValue)
@@ -2156,7 +2158,6 @@ local function applyGodGun(tool)
         end
     )
 
-
     task.wait(0.5)
     debugPrintAttributes(tool)
 end
@@ -2179,7 +2180,6 @@ RunService.Heartbeat:Connect(
         end
     end
 )
-
 
 LocalPlayer.CharacterAdded:Connect(
     function(char)
@@ -2341,7 +2341,6 @@ local function checkAndModifyFists()
     end
 end
 
-
 RunService.Heartbeat:Connect(
     function()
         if FistsBuffEnabled then
@@ -2349,7 +2348,6 @@ RunService.Heartbeat:Connect(
         end
     end
 )
-
 
 LocalPlayer.CharacterAdded:Connect(
     function()
@@ -2477,7 +2475,6 @@ local DistanceESPToggle =
 )
 myConfig:Register("DistanceESP", DistanceESPToggle)
 
-
 local HighlightToggle =
     Tab_ESP:Toggle(
     {
@@ -2485,7 +2482,6 @@ local HighlightToggle =
         Default = false,
         Callback = function(state)
             highlightEnabled = state
-
             for _, player in pairs(game.Players:GetPlayers()) do
                 updateHighlight(player)
             end
@@ -2506,7 +2502,6 @@ function updateHighlight(player)
         return
     end
 
-
     if playerHighlights[player] then
         playerHighlights[player]:Destroy()
         playerHighlights[player] = nil
@@ -2522,7 +2517,6 @@ function updateHighlight(player)
         playerHighlights[player] = highlight
     end
 end
-
 
 game.Players.PlayerAdded:Connect(
     function(player)
@@ -2543,7 +2537,6 @@ game.Players.PlayerRemoving:Connect(
         end
     end
 )
-
 
 for _, player in pairs(game.Players:GetPlayers()) do
     if player ~= game.Players.LocalPlayer then
@@ -2589,12 +2582,12 @@ myConfig:Register("SpeedMultiplier", SpeedSlider)
 local JumpPowerToggle =
     Tab_Character:Toggle(
     {
-        Title = "Jump Power",
+        Title = "Jump Power (Fly)",
         Default = false,
         Callback = function(state)
             FlyEnabled = state
             if not FlyEnabled then
-                flying = false
+                isFlyingUp = false
             end
         end
     }
@@ -2619,7 +2612,6 @@ local AutoSprintToggle =
         Callback = function(state)
             AutoSprintEnabled = state
             if AutoSprintEnabled then
-
                 local success, SprintModule =
                     pcall(
                     function()
@@ -2654,7 +2646,6 @@ local AutoSprintToggle =
                                     )
                                     task.wait(0.1)
                                 end
-
                                 pcall(
                                     function()
                                         Net.send("set_sprinting_1", false)
@@ -2679,18 +2670,15 @@ local AutoSprintToggle =
                     AutoSprintToggle:Set(false)
                 end
             else
-
                 if getgenv().AutoSprintLoop then
                     task.cancel(getgenv().AutoSprintLoop)
                     getgenv().AutoSprintLoop = nil
                 end
-
                 pcall(
                     function()
                         Net.send("set_sprinting_1", false)
                     end
                 )
-
                 local success, SprintModule =
                     pcall(
                     function()
@@ -2923,14 +2911,11 @@ local SnapToggle =
         Default = false,
         Callback = function(state)
             featureEnabled = state
-
             if featureEnabled then
                 clickCount = clickCount + 1
-
                 if clickCount < 2 then
                     return
                 end
-
                 startY = HumanoidRootPart and HumanoidRootPart.Position.Y or nil
                 teleportActive = true
                 performTeleport()
@@ -3015,16 +3000,11 @@ local function safeToggle(title, desc, key, callback)
                     end
                 }
             )
-
-
             myConfig:Register(key, ToggleElement)
-
-
             myConfig:Register(key .. "Backup", ToggleElement)
         end
     )
 end
-
 
 safeToggle(
     "Skip Crate Spin",
@@ -3037,8 +3017,36 @@ safeToggle(
     end
 )
 
+-- ========== แท็บ MISC: เพิ่ม toggle Invisible (Desync) ==========
 local Tab_misc = Window:Tab({Title = "MISC:", Icon = "warehouse"})
 
+-- เพิ่ม Section สำหรับ Invisible
+Tab_misc:Section({Title = "INVISIBLE (DESYNC)"})
+local InvisibleToggle =
+    Tab_misc:Toggle(
+    {
+        Title = "Invisible Mode (Desync)",
+        Desc = "เปิดโหมดล่องหน (ใช้ได้กับบาง Executor เท่านั้น)",
+        Default = false,
+        Callback = function(state)
+            desyncEnabled = state
+            setDesync(state)
+            if state then
+                if WindUI then
+                    WindUI:Notify({Title = "👻 Invisible Mode ON", Duration = 2})
+                end
+            else
+                if WindUI then
+                    WindUI:Notify({Title = "👤 Invisible Mode OFF", Duration = 2})
+                end
+            end
+        end
+    }
+)
+myConfig:Register("InvisibleToggle", InvisibleToggle)
+Tab_misc:Divider()
+
+-- ส่วนอื่นๆ ของ MISC
 local placeId = game.PlaceId
 
 local Input =
@@ -3091,8 +3099,8 @@ Tab_misc:Button(
 )
 
 local HttpService = game:GetService("HttpService")
-local placeId = game.PlaceId
-local searching = false
+local TeleportService = game:GetService("TeleportService")
+local Players = game:GetService("Players")
 
 local function FindServer()
     local servers = {}
@@ -3302,7 +3310,7 @@ if loadFunc then
     loadFunc(myConfig)
 end
 
-
+-- ========== ส่วน bypass และฟังก์ชันอื่นๆ ==========
 local _old_tween = Util.tween
 
 Util.tween = function(instance, tweenInfo, properties)
@@ -3386,7 +3394,6 @@ LocalPlayer.CharacterAdded:Connect(
 )
 
 task.wait(1)
-
 print("Bypass hotbar inf")
 local function hookButton(button)
     if not button then
@@ -3469,7 +3476,6 @@ local function getRarityColor(item)
     return Color3.fromRGB(255, 255, 255)
 end
 
-
 local function cleanupItemDrawings()
     for item, d in pairs(item_drawings) do
         if not item or not item.Parent then
@@ -3513,7 +3519,6 @@ local function cleanupItemDrawings()
     end
 end
 
-
 RunService.RenderStepped:Connect(
     function()
         cleanupItemDrawings()
@@ -3525,7 +3530,6 @@ RunService.RenderStepped:Connect(
         if not hrp then
             return
         end
-
 
         for _, d in pairs(item_drawings) do
             d.circle.Visible = false
@@ -3579,13 +3583,11 @@ RunService.RenderStepped:Connect(
                 d.innerCircle.Transparency = 1
                 d.innerCircle.Filled = true
 
-
                 d.name.Outline = true
                 d.name.OutlineColor = Color3.fromRGB(0, 0, 0)
                 d.name.Center = true
                 d.name.Size = 16
                 d.name.Font = 4
-
 
                 d.amount.Outline = true
                 d.amount.OutlineColor = Color3.fromRGB(0, 0, 0)
