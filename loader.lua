@@ -185,10 +185,10 @@ end)
 Window = nil
 if WindUI then
     Window = WindUI:CreateWindow({
-        Title = "ZENITH HUB  |  Block Spin 🔫| FREE💸",
+        Title = "ZENITH HUB  |  Block Spin 🔫| PAID 💸",
         Icon = "list",
-        Author = "HI! I'M KUNGHE I'M COOL :)",
-        Folder = "MYSTIC HUB Now!!!",
+        Author = "HI! I'M YUGI:)",
+        Folder = "ZENITH HUB Now!!!",
         Size = UDim2.fromOffset(650, 400),
         Theme = "Dark",
         Transparent = true,
@@ -196,7 +196,7 @@ if WindUI then
         KeyCode = Enum.KeyCode.G
     })
     Window:Tag({
-        Title = "v5.6",
+        Title = "v5.7.3",
         Color = Color3.fromHex("#30ff6a"),
         Radius = 12
     })
