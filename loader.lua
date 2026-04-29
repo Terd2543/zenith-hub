@@ -194,7 +194,7 @@ if checkCondition() then
 normalBtn.MouseButton1Click:Connect(function()
     destroyUI()
     task.spawn(function()
-        -- 1. กดปุ่ม Play ใน SplashScreen
+        -- กดปุ่ม Play
         task.wait(2.5)
         local splashGui = playerGui:FindFirstChild("SplashScreenGui")
         if splashGui and splashGui.Enabled then
@@ -203,7 +203,7 @@ normalBtn.MouseButton1Click:Connect(function()
             pressButton(playButton)
         end
         
-        -- 2. ข้ามหน้าตัวละคร (CharacterCreator)
+        -- ข้าม CharacterCreator (รอให้ปรากฏ)
         task.wait(4)
         local characterCreator = playerGui:FindFirstChild("CharacterCreator")
         if characterCreator then
@@ -212,7 +212,7 @@ normalBtn.MouseButton1Click:Connect(function()
             if skipButton then
                 pressButton(skipButton)
             else
-                -- หาปุ่มอื่นที่ใช้ข้าม
+                -- fallback หาปุ่มข้าม
                 for _, btn in ipairs(characterCreator:GetDescendants()) do
                     if btn:IsA("TextButton") and (btn.Name:lower():find("skip") or btn.Name:lower():find("close")) then
                         pressButton(btn)
@@ -222,12 +222,12 @@ normalBtn.MouseButton1Click:Connect(function()
             end
         end
         
-        -- 3. รอให้ตัวละครเกิดขึ้นจริง (CharacterAdded) ก่อนจะปล่อยให้โหลด ZENITH HUB เต็มรูปแบบ
-        if not LocalPlayer.Character then
-            LocalPlayer.CharacterAdded:Wait()
+        -- รอให้ตัวละครเกิดจริง
+        if not Players.LocalPlayer.Character then
+            Players.LocalPlayer.CharacterAdded:Wait()
         end
         
-        -- 4. สำคัญ: ขจัด GUI ที่อาจค้าง (SplashScreenGui, CharacterCreator, ฯลฯ) ให้หมด
+        -- ล้าง GUI ที่ค้าง
         task.wait(1)
         for _, gui in ipairs(playerGui:GetChildren()) do
             if gui:IsA("ScreenGui") and (gui.Name == "SplashScreenGui" or gui.Name == "CharacterCreator" or gui.Name:find("zhXUI")) then
