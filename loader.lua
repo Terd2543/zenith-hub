@@ -123,24 +123,12 @@ godBtn.MouseButton1Click:Connect(function()
         end
 
         task.wait(2.5)
-        -- แก้ไข replicatesignal เป็น pcall เพื่อ kill ตัวเอง
-        pcall(function()
-            local char = game.Players.LocalPlayer.Character
-            if char and char:FindFirstChild("Humanoid") then
-                char.Humanoid.Health = 0
-            end
-            -- ลองเรียก remote kill ถ้ามี
-            local KillRemote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("KillPlayer")
-            if KillRemote then
-                KillRemote:FireServer()
-            end
-        end)
+        replicatesignal(game.Players.LocalPlayer.Kill)
         task.wait(7)
         Net.send("death_screen_request_respawn")
     end)
 end)
 
-task.wait(7)
 
 -- main script
 raknetLib = raknet
@@ -199,8 +187,8 @@ if WindUI then
     Window = WindUI:CreateWindow({
         Title = "ZENITH HUB  |  Block Spin 🔫| FREE💸",
         Icon = "list",
-        Author = "block spin",
-        Folder = "ZENITH HUB Now!!!",
+        Author = "HI! I'M KUNGHE I'M COOL :)",
+        Folder = "MYSTIC HUB Now!!!",
         Size = UDim2.fromOffset(650, 400),
         Theme = "Dark",
         Transparent = true,
@@ -208,7 +196,7 @@ if WindUI then
         KeyCode = Enum.KeyCode.G
     })
     Window:Tag({
-        Title = "v5.7.2",
+        Title = "v5.6",
         Color = Color3.fromHex("#30ff6a"),
         Radius = 12
     })
@@ -289,11 +277,6 @@ scanRadius = 20
 localEventCounter = 0
 localFuncCounter = 0
 AutoSprintEnabled = false
-
--- เพิ่มตัวแปรที่ขาดหายไป
-enabled = false
-SelectedAimPart = "Head"
-TracerESP = nil
 
 RARITY_COLORS = {
     ["Common"] = Color3.fromRGB(255, 255, 255),
@@ -885,11 +868,7 @@ function ForcePart(v)
         AlignPosition.MaxVelocity = math.huge
         AlignPosition.Responsiveness = 9999
         AlignPosition.Attachment0 = Attachment2
-        -- ใช้ global attachment เพื่อป้องกัน error
-        if not _G.Attachment1 then
-            _G.Attachment1 = Instance.new("Attachment")
-        end
-        AlignPosition.Attachment1 = _G.Attachment1
+        AlignPosition.Attachment1 = Attachment1
     end
 end
 
@@ -904,8 +883,7 @@ function ToggleBring(name)
         BringConnection = Workspace.DescendantAdded:Connect(ForcePart)
         task.spawn(function()
             while Active do
-                if not _G.Attachment1 then _G.Attachment1 = Instance.new("Attachment") end
-                _G.Attachment1.WorldCFrame = targetRoot.CFrame
+                Attachment1.WorldCFrame = targetRoot.CFrame
                 task.wait()
             end
         end)
@@ -1205,7 +1183,6 @@ oldFire = nil
 if Remote and Remote.FireServer then
     local ok, res = pcall(function()
         oldFire = hookfunction(Remote.FireServer, function(self, ...)
-            if not oldFire then return end
             if self ~= Remote then return oldFire(self, ...) end
             local args = {...}
             if SilentAimEnabled and args[2] == "shoot_gun" and CurrentTarget then
@@ -1526,6 +1503,8 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ========== SKIP CRATE SYSTEM (ใหม่) ==========
+
+
 local CrateController = require(ReplicatedStorage.Modules.Game.CrateSystem.Crate)
 local skipLoopRunning = false
 
@@ -1538,7 +1517,7 @@ local function SkipCurrentCrates()
     end)
 end
 
--- เริ่ม loop skip ตลอดไป (ทำงานทันทีเมื่อเปิดสคริปต์)
+-- เริ่ม loop skip ตลอดไป
 local function StartInfiniteSkip()
     if skipLoopRunning then return end
     skipLoopRunning = true
@@ -1548,16 +1527,12 @@ local function StartInfiniteSkip()
             task.wait(0.05)
         end
     end)
-    if WindUI then WindUI:Notify({Title = "♾️ Skip Crate เปิดตลอด", Duration = 2}) end
+    if WindUI then WindUI:Notify({Title = "♾️ Skip Crate ตลอดไป", Duration = 2}) end
 end
 
-local function StopInfiniteSkip()
-    skipLoopRunning = false
-    if WindUI then WindUI:Notify({Title = "⏹️ ปิด Skip Crate", Duration = 2}) end
-end
+-- ปุ่ม: กดแล้วทำงานตลอด ไม่มีปิด (ต้องรีสตาร์ทสคริปต์หรือออกเกมถึงจะหยุด)
 
--- เริ่มทำงานอัตโนมัติเมื่อโหลดสคริปต์ (optional)
--- StartInfiniteSkip()  // ปล่อยไว้คอมเม้นต์ ถ้าต้องการให้กดปุ่มเปิดเอง
+
 
 StartAutoAttack()
 for _, category in ipairs({"gun","melee","throwable","consumable","farming","misc","rod","fish"}) do
@@ -1850,12 +1825,10 @@ myConfig:Register("SpeedMultiplier", SpeedSlider)
 local JumpPowerToggle = Tab_Character:Toggle({Title = "Jump Power (Fly)", Default = false, Callback = function(state) FlyEnabled = state; if not FlyEnabled then isFlyingUp = false end end})
 myConfig:Register("JumpPower", JumpPowerToggle)
 
--- เปลี่ยนชื่อ Net เพื่อไม่ให้ชนกับตัวแปรเดิม
-local LocalNet = {}
-function LocalNet.send(...)
+Net = {}
+function Net.send(...)
     local args = {...}
-    if not CounterTable then return end
-    CounterTable.event = (CounterTable.event or 0) + 1
+    CounterTable.event = CounterTable.event + 1
     pcall(function() Remotes.Send:FireServer(CounterTable.event, unpack(args)) end)
 end
 
@@ -1872,10 +1845,10 @@ local AutoSprintToggle = Tab_Character:Toggle({Title = "Infinite Stamina", Defau
                 getgenv().OriginalSprintUpdate = Old
                 getgenv().AutoSprintLoop = task.spawn(function()
                     while AutoSprintEnabled do
-                        pcall(function() LocalNet.send("set_sprinting_1", true); task.wait(0.5); LocalNet.send("set_sprinting_1", false) end)
+                        pcall(function() Net.send("set_sprinting_1", true); task.wait(0.5); Net.send("set_sprinting_1", false) end)
                         task.wait(0.1)
                     end
-                    pcall(function() LocalNet.send("set_sprinting_1", false) end)
+                    pcall(function() Net.send("set_sprinting_1", false) end)
                 end)
                 if WindUI then WindUI:Notify({Title = "✅ INF STAMINA", Duration = 3}) end
             else
@@ -1888,7 +1861,7 @@ local AutoSprintToggle = Tab_Character:Toggle({Title = "Infinite Stamina", Defau
         end
     else
         if getgenv().AutoSprintLoop then task.cancel(getgenv().AutoSprintLoop); getgenv().AutoSprintLoop = nil end
-        pcall(function() LocalNet.send("set_sprinting_1", false) end)
+        pcall(function() Net.send("set_sprinting_1", false) end)
         local success, SprintModule = pcall(function() return require(ReplicatedStorage.Modules.Game.Sprint) end)
         if success and SprintModule then
             local consume_stamina = SprintModule.consume_stamina
@@ -2018,14 +1991,13 @@ end})
 myConfig:Register("SnapHeight", SnapSlider)
 
 -- ============================================================
--- สร้าง Tab_player และ Tab_buyer ตามลำดับ (แก้ไขแล้ว)
+-- แก้ไขส่วนที่สำคัญ: สร้าง Tab_player และ Tab_buyer ตามลำดับ
 -- ============================================================
 local Tab_player = Window:Tab({Title = "PLAYER:", Icon = "person-standing"})
 Tab_player:Section({Title = "PLAYER:"})
 local Folder = Instance.new("Folder", Workspace)
 local CorePart = Instance.new("Part", Folder)
 local Attachment1 = Instance.new("Attachment", CorePart)
-_G.Attachment1 = Attachment1  -- ให้ ForcePart ใช้งานได้
 CorePart.Anchored = true
 CorePart.CanCollide = false
 CorePart.Transparency = 1
@@ -2042,21 +2014,17 @@ end})
 myConfig:Register("AutoFinnish", AutoFinnishToggle)
 Tab_player:Divider()
 
--- ✅ สร้าง Tab_buyer อย่างถูกต้อง
+-- ✅ สร้าง Tab_buyer อย่างถูกต้อง (แก้ไขจุดที่ทำให้ Tab หาย)
 local Tab_buyer = Window:Tab({Title = "BUY:", Icon = "shopping-cart"})
 Tab_buyer:Section({Title = "CRATE SYSTEM"})
 
--- ปุ่มเปิด skip ตลอด
 Tab_buyer:Button({
-    Title = "เปิด Skip Crate (ตลอด)",
+    Title = "Skip Crates (เปิดตลอด)",
     Callback = StartInfiniteSkip
 })
 
--- ปุ่มปิด skip
-Tab_buyer:Button({
-    Title = "ปิด Skip Crate",
-    Callback = StopInfiniteSkip
-})
+
+myConfig:Register("AutoSkipCrate", AutoSkipToggle)
 
 -- ========== MISC TAB ==========
 local Tab_misc = Window:Tab({Title = "MISC:", Icon = "warehouse"})
