@@ -2014,6 +2014,102 @@ end})
 myConfig:Register("AutoFinnish", AutoFinnishToggle)
 Tab_player:Divider()
 
+-- =====================================================
+-- เพิ่ม Tab Remote สำหรับเปิด Ammo Crate แบบเลือกประเภทกระสุน
+-- =====================================================
+
+-- ฟังก์ชันหา CrateOptions (ใช้เส้นทางเดียวกับที่เกมใช้จริง)
+-- =====================================================
+-- แก้ไข Tab Remote โดยใช้ Dropdown แบบ WindUI
+-- =====================================================
+
+-- ฟังก์ชันหา CrateOptions (ใช้เส้นทางเดียวกัน)
+local function getCrateOptions()
+    local map = workspace:FindFirstChild("Map")
+    if not map then return nil end
+    local tiles = map:FindFirstChild("Tiles")
+    if not tiles then return nil end
+    local gunShopTile = tiles:FindFirstChild("GunShopTile")
+    if not gunShopTile then return nil end
+    local patriotWeapons = gunShopTile:FindFirstChild("PatriotWeapons")
+    if not patriotWeapons then return nil end
+    local interior = patriotWeapons:FindFirstChild("Interior")
+    if not interior then return nil end
+    local crates = interior:FindFirstChild("Crates")
+    if not crates then return nil end
+    local ammoCrate = crates:FindFirstChild("Ammo Crate")
+    if not ammoCrate then return nil end
+    return ammoCrate:FindFirstChild("CrateOptions")
+end
+
+-- ฟังก์ชันเปิด crate ตามประเภทกระสุนที่เลือก
+local function openCrateWithType(bulletType)
+    local crateOptions = getCrateOptions()
+    if not crateOptions then
+        warn("❌ ไม่พบ CrateOptions (อาจอยู่นอกแผนที่หรือยังไม่โหลด)")
+        if WindUI then WindUI:Notify({Title = "❌ ไม่พบ Ammo Crate", Duration = 2}) end
+        return
+    end
+    
+    local targetItem = crateOptions:FindFirstChild(bulletType)
+    if not targetItem then
+        warn("❌ ไม่พบประเภท " .. bulletType .. " ใน CrateOptions")
+        if WindUI then WindUI:Notify({Title = "❌ ไม่มี " .. bulletType .. " ใน crate", Duration = 2}) end
+        return
+    end
+    
+    -- เรียก NetGet (ฟังก์ชันที่มีอยู่แล้วในสคริปต์หลัก)
+    local result = NetGet("open_crate", targetItem, "money")
+    if result then
+        print("✅ เปิด crate สำเร็จ ประเภท:", bulletType)
+        if WindUI then WindUI:Notify({Title = "🔫 เปิด " .. bulletType .. " สำเร็จ", Duration = 2}) end
+    else
+        warn("❌ เปิด crate ล้มเหลว")
+        if WindUI then WindUI:Notify({Title = "❌ เปิด crate ไม่สำเร็จ", Duration = 2}) end
+    end
+end
+
+-- สร้าง Tab ใหม่ชื่อ "REMOTE"
+local Tab_remote = Window:Tab({Title = "REMOTE:", Icon = "satellite-dish"})
+Tab_remote:Section({Title = "AMMO CRATE CONTROLLER"})
+
+-- ตัวแปรเก็บประเภทที่เลือกจาก dropdown
+local selectedBulletType = "Pistol"
+
+-- Dropdown แบบเลือกเดี่ยว (ใช้ syntax WindUI)
+local bulletDropdown = Tab_remote:Dropdown({
+    Title = "เลือกประเภทกระสุน",
+    Values = {"Pistol", "Rifle", "Shotgun", "Random"},
+    Value = "Pistol",          -- ค่าเริ่มต้น
+    Multi = false,             -- เลือกได้แค่ค่าเดียว
+    Callback = function(selected)
+        selectedBulletType = selected
+        if selected == "Random" then
+            print("🎲 โหมดสุ่ม: จะสุ่ม Pistol / Rifle / Shotgun เมื่อกดเปิด")
+        else
+            print("🔫 เลือกประเภท: " .. selected)
+        end
+    end
+})
+
+Tab_remote:Button({
+    Title = "เปิด Ammo Crate",
+    Desc = "ใช้ประเภทกระสุนที่เลือกจาก dropdown",
+    Callback = function()
+        local useType = selectedBulletType
+        if useType == "Random" then
+            local options = {"Pistol", "Rifle", "Shotgun"}
+            useType = options[math.random(1, #options)]
+           
+            if WindUI then WindUI:Notify({Title = "สุ่มได้ " .. useType, Duration = 1}) end
+        end
+        openCrateWithType(useType)
+    end
+})
+
+
+
+
 -- ✅ สร้าง Tab_buyer อย่างถูกต้อง (แก้ไขจุดที่ทำให้ Tab หาย)
 local Tab_buyer = Window:Tab({Title = "BUY:", Icon = "shopping-cart"})
 Tab_buyer:Section({Title = "CRATE SYSTEM"})
