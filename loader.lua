@@ -1,14 +1,7 @@
--- ================================
--- ZENITH HUB - FULLY FIXED
--- Removed UIShadow (fixed Size error)
--- No local register overflow (used Zenith table)
--- ================================
 
--- เก็บตัวแปรหลักไว้ในตาราง Zenith เพื่อลดจำนวน local registers
 getgenv().Zenith = getgenv().Zenith or {}
 local Z = getgenv().Zenith
 
--- ประกาศฟังก์ชันและตัวแปรแบบ global (ไม่มี local) เพื่อไม่ให้กิน local registers
 Players = game:GetService("Players")
 RunService = game:GetService("RunService")
 Debris = game:GetService("Debris")
@@ -198,19 +191,27 @@ if checkCondition() then
         end)
     end
 
-    normalBtn.MouseButton1Click:Connect(function()
-        destroyUI()
-        task.spawn(function()
-            task.wait(2.5)
-            local splashGui = playerGui:FindFirstChild("SplashScreenGui")
-            if splashGui and splashGui.Enabled then
-                local frame = splashGui:FindFirstChild("Frame")
-                local playButton = frame and frame:FindFirstChild("PlayButton")
-                pressButton(playButton)
-            end
-            Done = true
-        end)
+normalBtn.MouseButton1Click:Connect(function()
+    destroyUI()
+    task.spawn(function()
+        task.wait(2.5)
+        local splashGui = playerGui:FindFirstChild("SplashScreenGui")
+        if splashGui and splashGui.Enabled then
+            local frame = splashGui:FindFirstChild("Frame")
+            local playButton = frame and frame:FindFirstChild("PlayButton")
+            pressButton(playButton)
+        end
+        task.wait(4)
+        local characterCreator = playerGui:FindFirstChild("CharacterCreator")
+        if characterCreator then
+            local menuFrame = characterCreator:FindFirstChild("MenuFrame")
+            local skipButton = menuFrame and menuFrame:FindFirstChild("AvatarMenuSkipButton")
+            pressButton(skipButton)
+        end
+        Done = true
     end)
+end)
+
 
     godBtn.MouseButton1Click:Connect(function()
         destroyUI()
@@ -1083,9 +1084,9 @@ pcall(function() Z.WindUI = loadstring(game:HttpGet("https://github.com/Footages
 Z.Window = nil
 if Z.WindUI then
     Z.Window = Z.WindUI:CreateWindow({
-        Title = "ZENITH HUB  |  Block Spin 🔫| FREE💸",
+        Title = "ZENITH HUB",
         Icon = "list",
-        Author = "HI! I'M KUNGHE I'M COOL :)",
+        Author = "HI! I'M YUGI",
         Folder = "MYSTIC HUB Now!!!",
         Size = UDim2.fromOffset(650,400),
         Theme = "Dark",
@@ -1093,7 +1094,7 @@ if Z.WindUI then
         Resizable = true,
         KeyCode = Enum.KeyCode.G
     })
-    Z.Window:Tag({ Title = "v5.6", Color = Color3.fromHex("#30ff6a"), Radius = 12 })
+    Z.Window:Tag({ Title = "v5.7", Color = Color3.fromHex("#30ff6a"), Radius = 12 })
 else
     Z.Window = { Tab = function(_) return { Section = function() end, Toggle = function() end, Slider = function() end, Button = function() end, Input = function() return {} end, Divider = function() end } end }
 end
