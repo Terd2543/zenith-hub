@@ -2,39 +2,30 @@
 getgenv().Zenith = getgenv().Zenith or {}
 local Z = getgenv().Zenith
 
-Players = game:GetService("Players")
-RunService = game:GetService("RunService")
-Debris = game:GetService("Debris")
-ReplicatedStorage = game:GetService("ReplicatedStorage")
-Workspace = game:GetService("Workspace")
-PathfindingService = game:GetService("PathfindingService")
-VIM = game:GetService("VirtualInputManager")
-GuiService = game:GetService("GuiService")
-UserInputService = game:GetService("UserInputService")
-CoreGui = game:GetService("CoreGui")
-TweenService = game:GetService("TweenService")
-ContextActionService = game:GetService("ContextActionService")
-HttpService = game:GetService("HttpService")
-TeleportService = game:GetService("TeleportService")
+-- ================================
+-- ZENITH HUB - FIXED (error: nil MouseButton1Click)
+-- Fixed pressButton safety and added nil checks
+-- ================================
 
--- ต้องรอให้ Net โหลดก่อน แต่เราจะใช้ pcall จัดการในภายหลัง
-local NetModule, RagdollModule, CharModule, Util, BuyPromptUI, EmotesUI, EmotesList, CoreUI, ItemsFolder, MeleeFolder
-pcall(function()
-    NetModule = require(ReplicatedStorage.Modules.Core.Net)
-    RagdollModule = require(game.ReplicatedStorage.Modules.Game.Ragdoll)
-    CharModule = require(game.ReplicatedStorage.Modules.Core.Char)
-    Util = require(ReplicatedStorage.Modules.Core.Util)
-    BuyPromptUI = require(ReplicatedStorage.Modules.Game.UI.BuyPromptUI)
-    EmotesUI = require(ReplicatedStorage.Modules.Game.Emotes.EmotesUI)
-    EmotesList = require(ReplicatedStorage.Modules.Game.Emotes.EmotesList)
-    CoreUI = require(ReplicatedStorage.Modules.Core.UI)
-    ItemsFolder = ReplicatedStorage:WaitForChild("Items")
-    MeleeFolder = ItemsFolder:WaitForChild("melee")
-end)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local PathfindingService = game:GetService("PathfindingService")
+local VIM = game:GetService("VirtualInputManager")
+local GuiService = game:GetService("GuiService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Net = require(ReplicatedStorage.Modules.Core.Net)
+local RagdollModule = require(game.ReplicatedStorage.Modules.Game.Ragdoll)
+local CharModule = require(game.ReplicatedStorage.Modules.Core.Char)
 
--- ========== PART 1: โหมดเลือก (Normal / God) - FIXED (removed UIShadow) ==========
 local Client = Players.LocalPlayer
-local playerGui = Client:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
 local Done = false
 
 local function checkCondition()
@@ -53,7 +44,6 @@ end
 
 if checkCondition() then
     local FONT = Enum.Font.GothamBold
-    local FONT_BUTTON = Enum.Font.GothamSemibold
 
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "zhXUI"
@@ -61,185 +51,140 @@ if checkCondition() then
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = playerGui
 
-    -- Main Frame
     local main = Instance.new("Frame")
-    main.Size = UDim2.new(0, 380, 0, 150)
-    main.Position = UDim2.fromScale(0.5, 0.5)
-    main.AnchorPoint = Vector2.new(0.5, 0.5)
-    main.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
-    main.BackgroundTransparency = 0.12
+    main.Size = UDim2.new(0,320,0,120)
+    main.Position = UDim2.fromScale(0.5,0.5)
+    main.AnchorPoint = Vector2.new(0.5,0.5)
+    main.BackgroundColor3 = Color3.fromRGB(255,255,120)
+    main.BackgroundTransparency = 0.45
     main.BorderSizePixel = 0
     main.Parent = screenGui
+    Instance.new("UICorner",main).CornerRadius = UDim.new(0,14)
 
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 24)
-    corner.Parent = main
-
-    -- Outer glow stroke (แทน UIShadow ที่ถูกลบ)
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(120, 150, 255)
-    stroke.Thickness = 1.8
-    stroke.Transparency = 0.45
+    stroke.Color = Color3.fromRGB(255,255,180)
+    stroke.Thickness = 1.2
+    stroke.Transparency = 0.25
     stroke.Parent = main
 
-    -- Gradient background
-    local bgGradient = Instance.new("UIGradient")
-    bgGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 55)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(20, 20, 40))
+    local blur = Instance.new("UIGradient")
+    blur.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0,Color3.fromRGB(255,255,170)),
+        ColorSequenceKeypoint.new(1,Color3.fromRGB(255,240,120))
     }
-    bgGradient.Rotation = 135
-    bgGradient.Parent = main
+    blur.Rotation = 90
+    blur.Parent = main
 
-    -- Title
     local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 44)
-    title.Position = UDim2.new(0, 0, 0, 12)
+    title.Size = UDim2.new(1,0,0,34)
+    title.Position = UDim2.new(0,0,0,4)
     title.BackgroundTransparency = 1
-    title.Text = "✨ ZENITH HUB ✨"
+    title.Text = "Zenith Hub"
     title.Font = FONT
-    title.TextSize = 24
-    title.TextColor3 = Color3.fromRGB(235, 235, 255)
-    title.TextStrokeTransparency = 0.4
-    title.TextStrokeColor3 = Color3.fromRGB(80, 100, 200)
+    title.TextSize = 22
+    title.TextColor3 = Color3.fromRGB(40,40,40)
     title.Parent = main
 
-    local function makeButton(txt, xPos, colorAccent)
+    local function makeButton(txt,x)
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 150, 0, 46)
-        btn.Position = UDim2.new(0, xPos, 0, 80)
-        btn.BackgroundColor3 = Color3.fromRGB(28, 28, 42)
-        btn.BackgroundTransparency = 0.3
+        btn.Size = UDim2.new(0,130,0,38)
+        btn.Position = UDim2.new(0,x,0,62)
+        btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+        btn.BackgroundTransparency = 0.35
         btn.Text = txt
-        btn.Font = FONT_BUTTON
-        btn.TextSize = 17
-        btn.TextColor3 = Color3.fromRGB(230, 230, 255)
+        btn.Font = FONT
+        btn.TextSize = 16
+        btn.TextColor3 = Color3.fromRGB(30,30,30)
         btn.AutoButtonColor = false
         btn.Parent = main
+        Instance.new("UICorner",btn).CornerRadius = UDim.new(0,10)
 
-        local btnCorner = Instance.new("UICorner")
-        btnCorner.CornerRadius = UDim.new(0, 14)
-        btnCorner.Parent = btn
-
-        local btnStroke = Instance.new("UIStroke")
-        btnStroke.Color = colorAccent or Color3.fromRGB(100, 130, 255)
-        btnStroke.Thickness = 1.2
-        btnStroke.Transparency = 0.5
-        btnStroke.Parent = btn
-
-        local hoverIn = TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            BackgroundTransparency = 0.1,
-            TextColor3 = Color3.fromRGB(255, 255, 255)
-        })
-        local hoverOut = TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            BackgroundTransparency = 0.3,
-            TextColor3 = Color3.fromRGB(230, 230, 255)
-        })
-        local strokeIn = TweenService:Create(btnStroke, TweenInfo.new(0.2), { Transparency = 0.15 })
-        local strokeOut = TweenService:Create(btnStroke, TweenInfo.new(0.2), { Transparency = 0.5 })
-
-        btn.MouseEnter:Connect(function()
-            hoverIn:Play()
-            strokeIn:Play()
-        end)
-        btn.MouseLeave:Connect(function()
-            hoverOut:Play()
-            strokeOut:Play()
-        end)
+        local s = Instance.new("UIStroke")
+        s.Color = Color3.fromRGB(255,255,180)
+        s.Thickness = 1
+        s.Transparency = 0.35
+        s.Parent = btn
 
         return btn
     end
 
-    local normalBtn = makeButton("🔰 NORMAL MODE", 30, Color3.fromRGB(80, 200, 120))
-    local godBtn = makeButton("👑 GOD MODE", 200, Color3.fromRGB(255, 100, 100))
-
-    local line = Instance.new("Frame")
-    line.Size = UDim2.new(0.8, 0, 0, 1.5)
-    line.Position = UDim2.new(0.1, 0, 0.55, 0)
-    line.BackgroundColor3 = Color3.fromRGB(100, 130, 255)
-    line.BackgroundTransparency = 0.6
-    line.BorderSizePixel = 0
-    line.Parent = main
-    Instance.new("UICorner", line).CornerRadius = UDim.new(1, 0)
-
-    main.BackgroundTransparency = 0.25
-    local fadeIn = TweenService:Create(main, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        BackgroundTransparency = 0.12
-    })
-    fadeIn:Play()
+    local normalBtn = makeButton("Normal mode",20)
+    local godBtn = makeButton("God mode",170)
 
     local function destroyUI()
-        local fadeOut = TweenService:Create(main, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            Size = UDim2.new(0, 0, 0, 0),
+        local tw = TweenService:Create(main,TweenInfo.new(0.22),{
+            Size = UDim2.new(0,0,0,0),
             BackgroundTransparency = 1
         })
-        fadeOut:Play()
-        fadeOut.Completed:Wait()
+        tw:Play()
+        tw.Completed:Wait()
         screenGui:Destroy()
     end
 
+    -- ปรับปรุง pressButton ให้ปลอดภัยยิ่งขึ้น
     local function pressButton(guiObject)
         if not guiObject then return end
-        pcall(function()
-            guiObject:Activate()
-        end)
-        pcall(function()
-            firesignal(guiObject.MouseButton1Click)
-        end)
-        pcall(function()
-            firesignal(guiObject.Activated)
+        task.spawn(function()
+            pcall(function() guiObject:Activate() end)
+            pcall(function() firesignal(guiObject.MouseButton1Click) end)
+            pcall(function() firesignal(guiObject.Activated) end)
         end)
     end
 
-normalBtn.MouseButton1Click:Connect(function()
-    destroyUI()
-    task.spawn(function()
-        -- กดปุ่ม Play
-        task.wait(2.5)
-        local splashGui = playerGui:FindFirstChild("SplashScreenGui")
-        if splashGui and splashGui.Enabled then
-            local frame = splashGui:FindFirstChild("Frame")
-            local playButton = frame and frame:FindFirstChild("PlayButton")
-            pressButton(playButton)
-        end
-        
-        -- ข้าม CharacterCreator (รอให้ปรากฏ)
-        task.wait(4)
-        local characterCreator = playerGui:FindFirstChild("CharacterCreator")
-        if characterCreator then
-            local menuFrame = characterCreator:FindFirstChild("MenuFrame")
-            local skipButton = menuFrame and menuFrame:FindFirstChild("AvatarMenuSkipButton")
-            if skipButton then
-                pressButton(skipButton)
-            else
-                -- fallback หาปุ่มข้าม
-                for _, btn in ipairs(characterCreator:GetDescendants()) do
-                    if btn:IsA("TextButton") and (btn.Name:lower():find("skip") or btn.Name:lower():find("close")) then
-                        pressButton(btn)
-                        break
+    -- NORMAL MODE (Fixed: skip CharacterCreator + wait for character)
+    normalBtn.MouseButton1Click:Connect(function()
+        destroyUI()
+        task.spawn(function()
+            -- 1. กด Play Button (ถ้ามี)
+            task.wait(2.5)
+            local splashGui = playerGui:FindFirstChild("SplashScreenGui")
+            if splashGui and splashGui.Enabled then
+                local frame = splashGui:FindFirstChild("Frame")
+                local playButton = frame and frame:FindFirstChild("PlayButton")
+                if playButton then
+                    pressButton(playButton)
+                else
+                    warn("PlayButton not found (maybe already hidden)")
+                end
+            end
+
+            -- 2. ข้าม CharacterCreator (เหมือน God Mode)
+            task.wait(4)
+            local characterCreator = playerGui:FindFirstChild("CharacterCreator")
+            if characterCreator then
+                local menuFrame = characterCreator:FindFirstChild("MenuFrame")
+                local skipButton = menuFrame and menuFrame:FindFirstChild("AvatarMenuSkipButton")
+                if skipButton then
+                    pressButton(skipButton)
+                else
+                    -- Fallback: หาปุ่มข้ามอื่น ๆ
+                    local anySkip = characterCreator:FindFirstChild("SkipButton") or characterCreator:FindFirstChild("CloseButton")
+                    if anySkip then
+                        pressButton(anySkip)
+                    else
+                        warn("SkipButton not found in CharacterCreator")
                     end
                 end
             end
-        end
-        
-        -- รอให้ตัวละครเกิดจริง
-        if not Players.LocalPlayer.Character then
-            Players.LocalPlayer.CharacterAdded:Wait()
-        end
-        
-        -- ล้าง GUI ที่ค้าง
-        task.wait(1)
-        for _, gui in ipairs(playerGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and (gui.Name == "SplashScreenGui" or gui.Name == "CharacterCreator" or gui.Name:find("zhXUI")) then
-                gui:Destroy()
+
+            -- 3. รอให้ตัวละครเกิดขึ้นจริง (CharacterAdded) ก่อนโหลด Zenith Hub
+            if not Players.LocalPlayer.Character then
+                Players.LocalPlayer.CharacterAdded:Wait()
             end
-        end
-        
-        Done = true
+
+            -- 4. ล้าง GUI ที่อาจค้าง
+            task.wait(1)
+            for _, gui in ipairs(playerGui:GetChildren()) do
+                if gui:IsA("ScreenGui") and (gui.Name == "SplashScreenGui" or gui.Name == "CharacterCreator" or gui.Name:find("zhXUI")) then
+                    gui:Destroy()
+                end
+            end
+
+            Done = true
+        end)
     end)
-end)
 
-
+    -- GOD MODE (unchanged, works fine)
     godBtn.MouseButton1Click:Connect(function()
         destroyUI()
         task.spawn(function()
@@ -249,7 +194,7 @@ end)
             local Char = require(ReplicatedStorage.Modules.Core.Char)
 
             if not _G.Bypass then
-                local func = getupvalue(NetModule.get,2)
+                local func = getupvalue(Net.get,2)
                 if func then
                     setconstant(func,3,"KUYIENGOKUYIENGO")
                     setconstant(func,4,"KUYIENGOKUYIENGO")
@@ -258,7 +203,7 @@ end)
             end
 
             local old
-            old = hookfunction(NetModule.send,function(...)
+            old = hookfunction(Net.send,function(...)
                 local d = {...}
                 if d[1] == "leave_character_creator" or d[1] == "player_created_outfit" then
                     return nil
@@ -267,25 +212,29 @@ end)
             end)
 
             task.wait(2.5)
+
             local splashGui = playerGui:FindFirstChild("SplashScreenGui")
             if splashGui and splashGui.Enabled then
                 local frame = splashGui:FindFirstChild("Frame")
                 local playButton = frame and frame:FindFirstChild("PlayButton")
-                pressButton(playButton)
+                if playButton then pressButton(playButton) end
             end
 
             task.wait(4)
+
             local characterCreator = playerGui:FindFirstChild("CharacterCreator")
             if characterCreator then
                 local menuFrame = characterCreator:FindFirstChild("MenuFrame")
                 local skipButton = menuFrame and menuFrame:FindFirstChild("AvatarMenuSkipButton")
-                pressButton(skipButton)
+                if skipButton then pressButton(skipButton) end
             end
 
             task.wait(2.5)
             replicatesignal(game.Players.LocalPlayer.Kill)
+
             task.wait(7)
-            NetModule.send("death_screen_request_respawn")
+            Net.send("death_screen_request_respawn")
+
             Done = true
         end)
     end)
@@ -296,6 +245,7 @@ end
 
 repeat task.wait() until Done
 
+-- (หลังจากนี้ให้วางโค้ด ZENITH HUB เต็มรูปแบบตามที่ต้องการ)
 -- ========== PART 2: ZENITH HUB (เต็มรูปแบบ) ==========
 -- ใช้ _G.Zenith สำหรับเก็บ state และตัวแปรต่างๆ เพื่อลดจำนวน local variables
 
