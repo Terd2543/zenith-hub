@@ -1,3 +1,4 @@
+-- GUI เลือกโหมด (Normal / God) ส่วนแรก保持不变
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -131,7 +132,6 @@ end)
 task.wait(7)
 
 -- main script
-
 raknetLib = raknet
 desyncEnabled = false
 
@@ -188,8 +188,8 @@ if WindUI then
     Window = WindUI:CreateWindow({
         Title = "ZENITH HUB  |  Block Spin 🔫| FREE💸",
         Icon = "list",
-        Author = "HI! I'M KUNGHE I'M COOL :)",
-        Folder = "MYSTIC HUB Now!!!",
+        Author = "block spin,
+        Folder = "ZENITH HUB Now!!!",
         Size = UDim2.fromOffset(650, 400),
         Theme = "Dark",
         Transparent = true,
@@ -197,7 +197,7 @@ if WindUI then
         KeyCode = Enum.KeyCode.G
     })
     Window:Tag({
-        Title = "v5.6",
+        Title = "v5.7.2",
         Color = Color3.fromHex("#30ff6a"),
         Radius = 12
     })
@@ -894,20 +894,65 @@ function ToggleBring(name)
 end
 
 function TrySkipCrate()
-    local success, CrateController = pcall(function() return require(ReplicatedStorage.Modules.Game.CrateSystem.Crate) end)
-    if not (success and CrateController) then return end
-    task.spawn(function()
-        local spinning = CrateController.spinning
-        if not spinning then return end
-        local waited = 0
-        while not spinning.get() do
-            if waited > 3 then break end
-            task.wait(0.05)
-            waited = waited + 0.05
-        end
-        if spinning.get() then pcall(function() CrateController.skip_spin() end) end
-    end)
+    loadstring(game:HttpGet("https://pastefy.app/HEGoWtob/raw"))()
 end
+
+-- =========================
+-- Boost FPS (ภาพกาก)
+-- =========================
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+
+local function Bootsfps()
+    -- ลบท้องฟ้า + เอฟเฟกต์
+    for _, v in ipairs(Lighting:GetChildren()) do
+        if v:IsA("Sky")
+        or v:IsA("Atmosphere")
+        or v:IsA("BloomEffect")
+        or v:IsA("SunRaysEffect")
+        or v:IsA("ColorCorrectionEffect")
+        or v:IsA("DepthOfFieldEffect") then
+            v:Destroy()
+        end
+    end
+
+    -- ปิดเงา / แสง
+    Lighting.GlobalShadows = false
+    Lighting.Brightness = 0
+    Lighting.FogEnd = 9e9
+    Lighting.EnvironmentDiffuseScale = 0
+    Lighting.EnvironmentSpecularScale = 0
+
+    -- Terrain กาก
+    if Terrain then
+        Terrain.WaterWaveSize = 0
+        Terrain.WaterWaveSpeed = 0
+        Terrain.WaterReflectance = 0
+        Terrain.WaterTransparency = 1
+    end
+
+    -- ทำทั้งแมพเป็นสีเทา / plastic
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.Material = Enum.Material.Plastic
+            v.Reflectance = 0
+            v.CastShadow = false
+            v.Color = Color3.fromRGB(120,120,120)
+
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            v.Transparency = 1
+
+        elseif v:IsA("ParticleEmitter")
+        or v:IsA("Trail")
+        or v:IsA("Beam") then
+            v.Enabled = false
+        end
+    end
+end
+
 
 function SetupAutoSkip()
     local remotesFolder = ReplicatedStorage:WaitForChild("Remotes", 5)
@@ -1382,6 +1427,43 @@ RunService.RenderStepped:Connect(function(deltaTime)
     end
 end)
 
+-- hit jump
+local player = game.Players.LocalPlayer
+local jumpPowerEnabled = true
+local jumpConn_HJ = nil
+
+local function setupHighJump(char)
+    if not jumpPowerEnabled then return end
+    local humanoid = char:WaitForChild("Humanoid")
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    
+    humanoid.UseJumpPower = true
+    humanoid.JumpPower = 60
+    
+    if jumpConn_HJ then
+        pcall(function() jumpConn_HJ:Disconnect() end)
+    end
+    
+    jumpConn_HJ = game:GetService("UserInputService").JumpRequest:Connect(function()
+        if not jumpPowerEnabled then return end
+        if hrp and hrp.Parent then
+            local look = hrp.CFrame.LookVector
+            hrp.Velocity = look * 80 + Vector3.new(0, 100, 0)
+        end
+    end)
+end
+
+player.CharacterAdded:Connect(function(char)
+    wait(0.5)
+    if jumpPowerEnabled then
+        setupHighJump(char)
+    end
+end)
+
+if player.Character then
+    setupHighJump(player.Character)
+end
+
 LocalPlayer.CharacterAdded:Connect(function(char)
     local hum = char:WaitForChild("Humanoid")
     if flyJumpConnection then flyJumpConnection:Disconnect() end
@@ -1420,6 +1502,38 @@ LocalPlayer.CharacterAdded:Connect(function()
     task.wait(0.1)
     StartAutoAttack()
 end)
+
+-- ========== SKIP CRATE SYSTEM (ใหม่) ==========
+
+
+local CrateController = require(ReplicatedStorage.Modules.Game.CrateSystem.Crate)
+local skipLoopRunning = false
+
+local function SkipCurrentCrates()
+    pcall(function()
+        for _, crate in pairs(CrateController.class.objects) do
+            crate.states.open.set(true)
+            CrateController.skipping.set(true)
+        end
+    end)
+end
+
+-- เริ่ม loop skip ตลอดไป
+local function StartInfiniteSkip()
+    if skipLoopRunning then return end
+    skipLoopRunning = true
+    task.spawn(function()
+        while skipLoopRunning do
+            SkipCurrentCrates()
+            task.wait(0.05)
+        end
+    end)
+    if WindUI then WindUI:Notify({Title = "♾️ Skip Crate ตลอดไป", Duration = 2}) end
+end
+
+-- ปุ่ม: กดแล้วทำงานตลอด ไม่มีปิด (ต้องรีสตาร์ทสคริปต์หรือออกเกมถึงจะหยุด)
+
+
 
 StartAutoAttack()
 for _, category in ipairs({"gun","melee","throwable","consumable","farming","misc","rod","fish"}) do
@@ -1867,7 +1981,7 @@ local SnapToggle = Tab_Character:Toggle({Title = "Snap Under Map", Default = fal
 end})
 myConfig:Register("SnapUnderMap", SnapToggle)
 
-local SnapSlider = Tab_Character:Slider({Title = "Snap:", Step = 1, Value = {Min=1, Max=50, Default=10}, Callback = function(value)
+local SnapSlider = Tab_Character:Slider({Title = "Snap:", Step = 1, Value = {Min=1, Max=100, Default=10}, Callback = function(value)
     maxHeight = value
     if teleportActive and HumanoidRootPart and startY then
         local bottomPos = Vector3.new(HumanoidRootPart.Position.X, startY - maxHeight, HumanoidRootPart.Position.Z)
@@ -1877,6 +1991,9 @@ local SnapSlider = Tab_Character:Slider({Title = "Snap:", Step = 1, Value = {Min
 end})
 myConfig:Register("SnapHeight", SnapSlider)
 
+-- ============================================================
+-- แก้ไขส่วนที่สำคัญ: สร้าง Tab_player และ Tab_buyer ตามลำดับ
+-- ============================================================
 local Tab_player = Window:Tab({Title = "PLAYER:", Icon = "person-standing"})
 Tab_player:Section({Title = "PLAYER:"})
 local Folder = Instance.new("Folder", Workspace)
@@ -1898,18 +2015,19 @@ end})
 myConfig:Register("AutoFinnish", AutoFinnishToggle)
 Tab_player:Divider()
 
-local Tab_buyer = Window:Tab({Title = "BUY:", Icon = "landmark"})
-Tab_buyer:Section({Title = "BUY:"})
+-- ✅ สร้าง Tab_buyer อย่างถูกต้อง (แก้ไขจุดที่ทำให้ Tab หาย)
+local Tab_buyer = Window:Tab({Title = "BUY:", Icon = "shopping-cart"})
+Tab_buyer:Section({Title = "CRATE SYSTEM"})
 
-local function safeToggle(title, desc, key, callback)
-    pcall(function()
-        local ToggleElement = Tab_buyer:Toggle({Title = title, Desc = desc, Icon = "check", Type = "Checkbox", Default = false, Callback = function(state) AutoSkipEnabled = state; if callback then callback(state) end end})
-        myConfig:Register(key, ToggleElement)
-        myConfig:Register(key.."Backup", ToggleElement)
-    end)
-end
-safeToggle("Skip Crate Spin", "ข้ามการหมุนกล่องอัตโนมัติ", "SkipCrate", function(state) if state then TrySkipCrate() end end)
+Tab_buyer:Button({
+    Title = "Skip Crates (เปิดตลอด)",
+    Callback = StartInfiniteSkip
+})
 
+
+myConfig:Register("AutoSkipCrate", AutoSkipToggle)
+
+-- ========== MISC TAB ==========
 local Tab_misc = Window:Tab({Title = "MISC:", Icon = "warehouse"})
 Tab_misc:Section({Title = "INVISIBLE (DESYNC)"})
 local InvisibleToggle = Tab_misc:Toggle({
@@ -2086,6 +2204,15 @@ Tab_misc:Button({
                 warn(err)
             end
         end)
+    end
+})
+
+Tab_misc:Button({
+    Title = "Boost FPS (ภาพกาก)",
+    Desc = "ลดคุณภาพภาพเพื่อเพิ่ม FPS",
+    Callback = function()
+        Bootsfps()
+        if WindUI then WindUI:Notify({Title = "✅ Boost FPS เปิดใช้งานแล้ว", Duration = 2}) end
     end
 })
 
