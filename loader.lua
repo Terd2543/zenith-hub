@@ -1,3 +1,132 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local Net = require(ReplicatedStorage.Modules.Core.Net)
+
+local FONT = Enum.Font.GothamBold
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "zhXUI"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = playerGui
+
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0,320,0,120)
+main.Position = UDim2.fromScale(0.5,0.5)
+main.AnchorPoint = Vector2.new(0.5,0.5)
+main.BackgroundColor3 = Color3.fromRGB(255,255,120)
+main.BackgroundTransparency = 0.45
+main.BorderSizePixel = 0
+main.Parent = screenGui
+Instance.new("UICorner",main).CornerRadius = UDim.new(0,14)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1,0,0,34)
+title.Position = UDim2.new(0,0,0,4)
+title.BackgroundTransparency = 1
+title.Text = "Zenith Hub"
+title.Font = FONT
+title.TextSize = 22
+title.TextColor3 = Color3.fromRGB(40,40,40)
+title.Parent = main
+
+local function makeButton(txt,x)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0,130,0,38)
+    btn.Position = UDim2.new(0,x,0,62)
+    btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    btn.BackgroundTransparency = 0.35
+    btn.Text = txt
+    btn.Font = FONT
+    btn.TextSize = 16
+    btn.TextColor3 = Color3.fromRGB(30,30,30)
+    btn.AutoButtonColor = false
+    btn.Parent = main
+    Instance.new("UICorner",btn).CornerRadius = UDim.new(0,10)
+    return btn
+end
+
+local normalBtn = makeButton("Normal mode", 20)
+local godBtn = makeButton("God mode", 170)
+
+local function destroyUI()
+    local tw = TweenService:Create(main, TweenInfo.new(0.22), {
+        Size = UDim2.new(0,0,0,0),
+        BackgroundTransparency = 1
+    })
+    tw:Play()
+    tw.Completed:Wait()
+    screenGui:Destroy()
+end
+
+local function pressButton(guiObject)
+    if not guiObject then return end
+    pcall(function() firesignal(guiObject.MouseButton1Click) end)
+    pcall(function() firesignal(guiObject.Activated) end)
+end
+
+normalBtn.MouseButton1Click:Connect(function()
+    destroyUI()
+    task.spawn(function()
+        task.wait(2.5)
+        local splashGui = playerGui:FindFirstChild("SplashScreenGui")
+        if splashGui then
+            local frame = splashGui:FindFirstChild("Frame")
+            local playButton = frame and frame:FindFirstChild("PlayButton")
+            pressButton(playButton)
+        end
+    end)
+end)
+
+godBtn.MouseButton1Click:Connect(function()
+    destroyUI()
+    task.spawn(function()
+        local Creator = require(ReplicatedStorage.Modules.Game.CharacterCreator.CharacterCreator)
+        local Char = require(ReplicatedStorage.Modules.Core.Char)
+
+        if not _G.Bypass then
+            local func = getupvalue(Net.get, 2)
+            if func then
+                setconstant(func, 3, "KUYIENGOKUYIENGO")
+                setconstant(func, 4, "KUYIENGOKUYIENGO")
+            end
+            _G.Bypass = true
+        end
+
+        local old
+        old = hookfunction(Net.send, function(...)
+            local d = {...}
+            if d[1] == "leave_character_creator" or d[1] == "player_created_outfit" then
+                return nil
+            end
+            return old(...)
+        end)
+
+        task.wait(1.5)
+        local splashGui = playerGui:FindFirstChild("SplashScreenGui")
+        if splashGui then
+            local frame = splashGui:FindFirstChild("Frame")
+            local playButton = frame and frame:FindFirstChild("PlayButton")
+            pressButton(playButton)
+        end
+
+        task.wait(4)
+        local characterCreator = playerGui:FindFirstChild("CharacterCreator")
+        if characterCreator then
+            local menuFrame = characterCreator:FindFirstChild("MenuFrame")
+            local skipButton = menuFrame and menuFrame:FindFirstChild("AvatarMenuSkipButton")
+            pressButton(skipButton)
+        end
+
+        task.wait(2.5)
+        replicatesignal(game.Players.LocalPlayer.Kill)
+        task.wait(7)
+        Net.send("death_screen_request_respawn")
+    end)
+end)
 
 getgenv().Zenith = getgenv().Zenith or {}
 local Z = getgenv().Zenith
