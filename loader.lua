@@ -1,4 +1,4 @@
--- GUI เลือกโหมด (Normal / God) ส่วนแรก保持不变
+
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -72,12 +72,19 @@ end
 normalBtn.MouseButton1Click:Connect(function()
     destroyUI()
     task.spawn(function()
-        task.wait(2.5)
+        task.wait(0.5)
         local splashGui = playerGui:FindFirstChild("SplashScreenGui")
         if splashGui then
             local frame = splashGui:FindFirstChild("Frame")
             local playButton = frame and frame:FindFirstChild("PlayButton")
             pressButton(playButton)
+        end
+        task.wait(0.5)
+         local characterCreator = playerGui:FindFirstChild("CharacterCreator")
+        if characterCreator then
+            local menuFrame = characterCreator:FindFirstChild("MenuFrame")
+            local skipButton = menuFrame and menuFrame:FindFirstChild("AvatarMenuSkipButton")
+            pressButton(skipButton)
         end
     end)
 end)
@@ -106,7 +113,7 @@ godBtn.MouseButton1Click:Connect(function()
             return old(...)
         end)
 
-        task.wait(2.5)
+        task.wait(0.5)
         local splashGui = playerGui:FindFirstChild("SplashScreenGui")
         if splashGui then
             local frame = splashGui:FindFirstChild("Frame")
@@ -114,7 +121,7 @@ godBtn.MouseButton1Click:Connect(function()
             pressButton(playButton)
         end
 
-        task.wait(4)
+        task.wait(0.5)
         local characterCreator = playerGui:FindFirstChild("CharacterCreator")
         if characterCreator then
             local menuFrame = characterCreator:FindFirstChild("MenuFrame")
@@ -1036,7 +1043,7 @@ function createESP(player)
         else
             nameText.Visible = false
         end
-        distanceText.Text = distanceESPEnabled and string.format("%.0f studs", dist) or ""
+        distanceText.Text = distanceESPEnabled and string.format("%.0f m", dist) or ""
         distanceText.Position = Vector2.new(centerX, screenPos.Y + 20)
         distanceText.Visible = distanceESPEnabled
     end)
