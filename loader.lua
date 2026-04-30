@@ -1,4 +1,3 @@
-
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -203,7 +202,7 @@ if WindUI then
         KeyCode = Enum.KeyCode.G
     })
     Window:Tag({
-        Title = "v5.7.3",
+        Title = "v5.7.4",
         Color = Color3.fromHex("#30ff6a"),
         Radius = 12
     })
@@ -1998,39 +1997,247 @@ end})
 myConfig:Register("SnapHeight", SnapSlider)
 
 -- ============================================================
--- แก้ไขส่วนที่สำคัญ: สร้าง Tab_player และ Tab_buyer ตามลำดับ
+-- TAB PLAYER (Auto Finish + Bring Part)
+-- ============================================================
+-- ============================================================
+-- TAB PLAYER (Auto Finish + Bring Player แบบ Input + Toggle)
+-- ============================================================
+-- ============================================================
+-- TAB PLAYER (รวม Bring Part)
 -- ============================================================
 local Tab_player = Window:Tab({Title = "PLAYER:", Icon = "person-standing"})
 Tab_player:Section({Title = "PLAYER:"})
-local Folder = Instance.new("Folder", Workspace)
-local CorePart = Instance.new("Part", Folder)
-local Attachment1 = Instance.new("Attachment", CorePart)
-CorePart.Anchored = true
-CorePart.CanCollide = false
-CorePart.Transparency = 1
 
-local AutoFinnishToggle = Tab_player:Toggle({Title = "Auto Finnish", Default = false, Callback = function(state)
+local AutoFinnishToggle = Tab_player:Toggle({Title = "Auto Finish", Default = false, Callback = function(state)
     fastFinishEnabled = state
     if state then
         applyToAll()
-        if WindUI then WindUI:Notify({Title = "✅ Auto Finish Enabled", Description = "✅ Auto Enabled", Duration = 3}) end
+        if WindUI then WindUI:Notify({Title = "✅ Auto Finish Enabled", Duration = 3}) end
     else
-        if WindUI then WindUI:Notify({Title = "❌ Auto Disabled", Description = "❌ Auto Disabled", Duration = 3}) end
+        if WindUI then WindUI:Notify({Title = "❌ Auto Disabled", Duration = 3}) end
     end
 end})
 myConfig:Register("AutoFinnish", AutoFinnishToggle)
+
+Tab_player:Divider()
+Tab_player:Section({Title = "BRING PART"})
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+local function findCounterTable()
+    if not getgc then return nil end
+    for _, obj in ipairs(getgc(true)) do
+        if typeof(obj) == "table" and rawget(obj, "event") and rawget(obj, "func") then
+            return obj
+        end
+    end
+    return nil
+end
+
+-- ===== ระบบดึงผู้เล่น (Bring Part) =====
+local bringNameInput = ""
+local BringActive = false
+local BringConnection = nil
+local selectedBringPlayer = ""
+
+-- สร้าง Attachment สำหรับดึงตัว
+local _bringFolder = Instance.new("Folder", workspace)
+_bringFolder.Name = "BringSystem"
+local _bringCorePart = Instance.new("Part", _bringFolder)
+_bringCorePart.Name = "BringCore"
+_bringCorePart.Anchored = true
+_bringCorePart.CanCollide = false
+_bringCorePart.Transparency = 1
+local _bringAttachment1 = Instance.new("Attachment", _bringCorePart)
+_bringAttachment1.Name = "BringAttachment"
+
+-- ฟังก์ชัน Force Part (ป้องกันการกระเด้ง)
+local function _forcePart(v)
+    if v:IsA("BasePart") and not v.Anchored and not v.Parent:FindFirstChildOfClass("Humanoid") and
+       not v.Parent:FindFirstChild("Head") and v.Name ~= "Handle" then
+        for _, obj in ipairs(v:GetChildren()) do
+            if obj:IsA("BodyMover") or obj:IsA("RocketPropulsion") then obj:Destroy() end
+        end
+        for _, junk in ipairs({"Attachment", "AlignPosition", "Torque"}) do
+            local f = v:FindFirstChild(junk)
+            if f then f:Destroy() end
+        end
+        v.CanCollide = false
+        local Torque = Instance.new("Torque", v)
+        local AlignPos = Instance.new("AlignPosition", v)
+        local Att2 = Instance.new("Attachment", v)
+        Torque.Torque = Vector3.new(100000, 100000, 100000)
+        Torque.Attachment0 = Att2
+        AlignPos.MaxForce = math.huge
+        AlignPos.MaxVelocity = math.huge
+        AlignPos.Responsiveness = 9999
+        AlignPos.Attachment0 = Att2
+        AlignPos.Attachment1 = _bringAttachment1
+    end
+end
+
+-- ฟังก์ชันหาผู้เล่น
+local function getPlayer(name)
+    name = string.lower(name)
+    for _, p in ipairs(Players:GetPlayers()) do
+        if string.find(string.lower(p.Name), name) or string.find(string.lower(p.DisplayName), name) then
+            return p
+        end
+    end
+    return nil
+end
+
+-- ฟังก์ชันเริ่ม/หยุดดึง
+local function toggleBringPlayer(playerName, state)
+    BringActive = state
+    if BringConnection then BringConnection:Disconnect() BringConnection = nil end
+    if not state then return end
+    
+    local target = getPlayer(playerName)
+    if not target then
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Bring", 
+            Text = "ไม่พบผู้เล่น: "..playerName, 
+            Duration = 3
+        })
+        BringActive = false
+        return
+    end
+    
+    local char = target.Character or target.CharacterAdded:Wait()
+    local targetRoot = char:WaitForChild("HumanoidRootPart")
+    
+    -- Force Part ทุกอัน
+    for _, v in ipairs(workspace:GetDescendants()) do pcall(_forcePart, v) end
+    BringConnection = workspace.DescendantAdded:Connect(function(v) pcall(_forcePart, v) end)
+    
+    -- ลูปดึงผู้เล่น
+    task.spawn(function()
+        while BringActive do
+            if targetRoot and targetRoot.Parent then
+                _bringAttachment1.WorldCFrame = targetRoot.CFrame
+            end
+            task.wait()
+        end
+    end)
+end
+
+-- ฟังก์ชันดึงชื่อผู้เล่นทั้งหมด
+local function getPlayerNames()
+    local names = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            table.insert(names, plr.Name)
+        end
+    end
+    if #names == 0 then table.insert(names, "ไม่มีผู้เล่นอื่น") end
+    return names
+end
+
+
+local bringDropdown = nil
+local bringActive = false
+
+-- Dropdown เลือกผู้เล่น
+bringDropdown = Tab_player:Dropdown({
+    Title = "เลือกผู้เล่น",
+    Values = getPlayerNames(),
+    Value = getPlayerNames()[1] or "ไม่มีผู้เล่นอื่น",
+    Multi = false,
+    Callback = function(selected)
+        if type(selected) == "string" and selected ~= "ไม่มีผู้เล่นอื่น" then
+            selectedBringPlayer = selected
+        elseif selected == "ไม่มีผู้เล่นอื่น" then
+            selectedBringPlayer = ""
+        end
+    end
+})
+
+-- ปุ่มรีเฟรชรายชื่อ
+Tab_player:Button({
+    Title = "รีเฟรชรายชื่อ",
+    Desc = "อัปเดตรายชื่อผู้เล่นในเซิร์ฟเวอร์",
+    Callback = function()
+        local names = getPlayerNames()
+        bringDropdown:Refresh(names, true)
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Bring", 
+            Text = "อัปเดตรายชื่อเรียบร้อย ("..#names.." คน)", 
+            Duration = 1
+        })
+    end
+})
+
 Tab_player:Divider()
 
--- =====================================================
--- เพิ่ม Tab Remote สำหรับเปิด Ammo Crate แบบเลือกประเภทกระสุน
--- =====================================================
+-- Toggle สำหรับดึงผู้เล่น
+local bringToggle = Tab_player:Toggle({
+    Title = "Bring Player (ค้างไว้)",
+    Desc = "ดึงผู้เล่นที่เลือกมาหาคุณตลอดเวลา",
+    Value = false,
+    Callback = function(state)
+        if state then
+            if not selectedBringPlayer or selectedBringPlayer == "" or selectedBringPlayer == "ไม่มีผู้เล่นอื่น" then
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "Bring", 
+                    Text = "กรุณาเลือกผู้เล่นก่อน", 
+                    Duration = 2
+                })
+                bringToggle:Set(false)
+                return
+            end
+            bringActive = true
+            toggleBringPlayer(selectedBringPlayer, true)
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Bring", 
+                Text = "กำลังดึง "..selectedBringPlayer, 
+                Duration = 2
+            })
+        else
+            bringActive = false
+            toggleBringPlayer(selectedBringPlayer, false)
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "Bring", 
+                Text = "หยุดดึง "..selectedBringPlayer, 
+                Duration = 2
+            })
+        end
+    end
+})
 
--- ฟังก์ชันหา CrateOptions (ใช้เส้นทางเดียวกับที่เกมใช้จริง)
--- =====================================================
--- แก้ไข Tab Remote โดยใช้ Dropdown แบบ WindUI
--- =====================================================
 
--- ฟังก์ชันหา CrateOptions (ใช้เส้นทางเดียวกัน)
+Players.PlayerAdded:Connect(function()
+    task.wait(0.5)
+    pcall(function() bringDropdown:Refresh(getPlayerNames(), true) end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    task.wait(0.5)
+    pcall(function() bringDropdown:Refresh(getPlayerNames(), true) end)
+    if bringActive and selectedBringPlayer == player.Name then
+        bringToggle:Set(false)
+        toggleBringPlayer(selectedBringPlayer, false)
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Bring", 
+            Text = "ผู้เล่นออกจากเกม หยุดดึง", 
+            Duration = 2
+        })
+    end
+end)
+
+Tab_player:Divider()
+
+
+-- ============================================================
+-- REMOTE TAB (Ammo Crate)
+-- ============================================================
+local Tab_remote = Window:Tab({Title = "REMOTE:", Icon = "satellite-dish"})
+Tab_remote:Section({Title = "AMMO CRATE CONTROLLER"})
+
 local function getCrateOptions()
     local map = workspace:FindFirstChild("Map")
     if not map then return nil end
@@ -2049,110 +2256,115 @@ local function getCrateOptions()
     return ammoCrate:FindFirstChild("CrateOptions")
 end
 
--- ฟังก์ชันเปิด crate ตามประเภทกระสุนที่เลือก
 local function openCrateWithType(bulletType)
     local crateOptions = getCrateOptions()
     if not crateOptions then
-        warn("❌ ไม่พบ CrateOptions (อาจอยู่นอกแผนที่หรือยังไม่โหลด)")
         if WindUI then WindUI:Notify({Title = "❌ ไม่พบ Ammo Crate", Duration = 2}) end
         return
     end
-    
     local targetItem = crateOptions:FindFirstChild(bulletType)
     if not targetItem then
-        warn("❌ ไม่พบประเภท " .. bulletType .. " ใน CrateOptions")
-        if WindUI then WindUI:Notify({Title = "❌ ไม่มี " .. bulletType .. " ใน crate", Duration = 2}) end
+        if WindUI then WindUI:Notify({Title = "❌ ไม่มี " .. bulletType, Duration = 2}) end
         return
     end
-    
-    -- เรียก NetGet (ฟังก์ชันที่มีอยู่แล้วในสคริปต์หลัก)
     local result = NetGet("open_crate", targetItem, "money")
     if result then
-        print("✅ เปิด crate สำเร็จ ประเภท:", bulletType)
         if WindUI then WindUI:Notify({Title = "🔫 เปิด " .. bulletType .. " สำเร็จ", Duration = 2}) end
     else
-        warn("❌ เปิด crate ล้มเหลว")
-        if WindUI then WindUI:Notify({Title = "❌ เปิด crate ไม่สำเร็จ", Duration = 2}) end
+        if WindUI then WindUI:Notify({Title = "❌ เปิดไม่สำเร็จ", Duration = 2}) end
     end
 end
 
--- สร้าง Tab ใหม่ชื่อ "REMOTE"
-local Tab_remote = Window:Tab({Title = "REMOTE:", Icon = "satellite-dish"})
-Tab_remote:Section({Title = "AMMO CRATE CONTROLLER"})
-
--- ตัวแปรเก็บประเภทที่เลือกจาก dropdown
 local selectedBulletType = "Pistol"
-
--- Dropdown แบบเลือกเดี่ยว (ใช้ syntax WindUI)
 local bulletDropdown = Tab_remote:Dropdown({
     Title = "เลือกประเภทกระสุน",
     Values = {"Pistol", "Rifle", "Shotgun", "Random"},
-    Value = "Pistol",          -- ค่าเริ่มต้น
-    Multi = false,             -- เลือกได้แค่ค่าเดียว
+    Value = "Pistol",
+    Multi = false,
     Callback = function(selected)
         selectedBulletType = selected
-        if selected == "Random" then
-            print("🎲 โหมดสุ่ม: จะสุ่ม Pistol / Rifle / Shotgun เมื่อกดเปิด")
-        else
-            print("🔫 เลือกประเภท: " .. selected)
-        end
     end
 })
 
 Tab_remote:Button({
     Title = "เปิด Ammo Crate",
-    Desc = "ใช้ประเภทกระสุนที่เลือกจาก dropdown",
+    Desc = "ใช้ประเภทกระสุนที่เลือก",
     Callback = function()
         local useType = selectedBulletType
         if useType == "Random" then
             local options = {"Pistol", "Rifle", "Shotgun"}
             useType = options[math.random(1, #options)]
-           
-            if WindUI then WindUI:Notify({Title = "สุ่มได้ " .. useType, Duration = 1}) end
+            if WindUI then WindUI:Notify({Title = "🎲 สุ่มได้ " .. useType, Duration = 1}) end
         end
         openCrateWithType(useType)
     end
 })
 
-
-
-
--- ✅ สร้าง Tab_buyer อย่างถูกต้อง (แก้ไขจุดที่ทำให้ Tab หาย)
+-- ============================================================
+-- BUY TAB
+-- ============================================================
 local Tab_buyer = Window:Tab({Title = "BUY:", Icon = "shopping-cart"})
-Tab_buyer:Section({Title = "CRATE SYSTEM"})
+Tab_buyer:Section({Title = "Bank"})
 
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local BankBalance = Tab_buyer:Button({Title = "🏦 Bank Balance", Desc = "N/A"})
+local HandBalance = Tab_buyer:Button({Title = "💸 Hand Balance", Desc = "N/A"})
+
+local function HandMoney()
+    local txt = PlayerGui:FindFirstChild("TopRightHud") and PlayerGui.TopRightHud:FindFirstChild("Holder") and PlayerGui.TopRightHud.Holder:FindFirstChild("Frame") and PlayerGui.TopRightHud.Holder.Frame:FindFirstChild("MoneyTextLabel")
+    if txt then
+        return tonumber(txt.Text:match("%$(%d+)")) or 0
+    end
+    return 0
+end
+
+local function ATMMoney()
+    for _, v in ipairs(PlayerGui:GetDescendants()) do
+        if v:IsA("TextLabel") and string.find(v.Text, "Bank Balance") then
+            return tonumber(v.Text:match("%$(%d+)")) or 0
+        end
+    end
+    return 0
+end
+
+task.spawn(function()
+    while task.wait(0.5) do
+        BankBalance:SetDesc('<b><font color="#FFFFFF">$' .. (ATMMoney() or 0) .. "</font></b>")
+        HandBalance:SetDesc('<b><font color="#FFFFFF">$' .. (HandMoney() or 0) .. "</font></b>")
+    end
+end)
+
+Tab_buyer:Section({Title = "CRATE SYSTEM"})
 Tab_buyer:Button({
-    Title = "Skip Crates (เปิดตลอด)",
-    Callback = StartInfiniteSkip
+    Title = "Skip Crates (ตลอดไป)",
+    Callback = function()
+        if not skipLoopRunning then
+            StartInfiniteSkip()
+        else
+            if WindUI then WindUI:Notify({Title = "กำลังทำงานอยู่แล้ว", Duration = 2}) end
+        end
+    end
 })
 
-
-myConfig:Register("AutoSkipCrate", AutoSkipToggle)
-
--- ========== MISC TAB ==========
+-- ============================================================
+-- MISC TAB
+-- ============================================================
 local Tab_misc = Window:Tab({Title = "MISC:", Icon = "warehouse"})
 Tab_misc:Section({Title = "INVISIBLE (DESYNC)"})
 local InvisibleToggle = Tab_misc:Toggle({
     Title = "Invisible Mode (Desync)",
-    Desc = "เปิดโหมดล่องหน (ใช้ได้กับบาง Executor เท่านั้น)",
+    Desc = "เปิดโหมดล่องหน",
     Default = false,
     Callback = function(state)
         desyncEnabled = state
         setDesync(state)
-        if state then
-            if WindUI then WindUI:Notify({Title = "👻 Invisible Mode ON", Duration = 2}) end
-        else
-            if WindUI then WindUI:Notify({Title = "👤 Invisible Mode OFF", Duration = 2}) end
-        end
     end
 })
-myConfig:Register("InvisibleToggle", InvisibleToggle)
-Tab_misc:Divider()
 
--- ========== MISC: มองของบนพื้น ==========
+Tab_misc:Divider()
 Tab_misc:Toggle({
     Title = "มองของบนพื้น",
-    Desc = "แสดง ESP ไอเทมที่ตกพื้น พร้อมสีตามความหายาก",
     Default = groundItemsESPEnabled,
     Callback = function(state)
         groundItemsESPEnabled = state
@@ -2168,189 +2380,91 @@ Tab_misc:Toggle({
     end
 })
 
--- ========== MISC: Server Hop, Quest, Config ==========
+-- Server Hop
 local placeId = game.PlaceId
-
 Tab_misc:Input({
     Title = "Server Hop by ID",
     Value = "",
     InputIcon = "send",
     Type = "Input",
-    Placeholder = "id sever here!",
+    Placeholder = "id server here!",
     Callback = function(input)
         if not input or input == "" then return end
-        local serverIds = {}
         for id in string.gmatch(input, "[%w%-]+") do
-            table.insert(serverIds, id)
-        end
-        if #serverIds == 0 then return end
-        for _, id in ipairs(serverIds) do
-            print("กำลังวาร์ปไปเซิร์ฟ:", id)
             task.wait(0.5)
-            pcall(function()
-                game:GetService("TeleportService"):TeleportToPlaceInstance(placeId, id, LocalPlayer)
-            end)
+            pcall(function() game:GetService("TeleportService"):TeleportToPlaceInstance(placeId, id, LocalPlayer) end)
         end
     end
 })
 
-Tab_misc:Button({
-    Title = "Server Rejoin",
-    Desc = "Come back old sever",
-    Callback = function()
-        game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, game.Players.LocalPlayer)
-    end
-})
+Tab_misc:Button({Title = "Server Rejoin", Callback = function()
+    game:GetService("TeleportService"):TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end})
 
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
-
-local function FindServer()
-    local servers = {}
-    local cursor = nil
-    for i = 1, 5 do
-        local success, result = pcall(function()
-            return HttpService:JSONDecode(game:HttpGet(string.format(
-                "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100%s",
-                placeId, cursor and "&cursor="..cursor or "")))
-        end)
-        if success and result and result.data then
-            for _, server in ipairs(result.data) do
-                if server.playing < server.maxPlayers and server.playing <= 20 then
-                    table.insert(servers, server)
-                end
-            end
-            cursor = result.nextPageCursor
-            if not cursor then break end
-        end
-        task.wait(0.2)
-    end
-    if #servers > 0 then
-        table.sort(servers, function(a,b) return a.playing > b.playing end)
-        local bestServer = servers[1]
-        print(string.format("✅ JobId: %s | ผู้เล่น: %d/%d", bestServer.id, bestServer.playing, bestServer.maxPlayers))
-        TeleportService:TeleportToPlaceInstance(placeId, bestServer.id, Players.LocalPlayer)
-    else
-        warn("❌ ไม่พบเซิร์ฟเวอร์ครับพี่")
-    end
-end
-
 Tab_misc:Button({
     Title = "Server Hop",
-    Desc = "Hop to a new server (sometime don't work)",
-    Locked = false,
     Callback = function()
         local PlaceId = 104715542330896
         local success, servers = pcall(function()
             return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Desc&limit=100"))
         end)
-        if not success or not servers or not servers.data then
-            warn("ไม่สามารถดึงข้อมูลเซิร์ฟเวอร์ได้เลยพี่")
-            return
-        end
-        local availableServers = {}
-        for _, server in ipairs(servers.data) do
-            if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                table.insert(availableServers, server)
+        if success and servers and servers.data then
+            local available = {}
+            for _, s in ipairs(servers.data) do
+                if s.playing < s.maxPlayers and s.id ~= game.JobId then table.insert(available, s) end
+            end
+            if #available > 0 then
+                table.sort(available, function(a,b) return a.playing > b.playing end)
+                TeleportService:TeleportToPlaceInstance(PlaceId, available[1].id, LocalPlayer)
             end
         end
-        if #availableServers == 0 then
-            warn("ไม่มีเซิร์ฟเวอร์ว่างเลยพี่ขณะนี้")
-            return
-        end
-        table.sort(availableServers, function(a,b) return a.playing > b.playing end)
-        local targetServer = availableServers[1]
-        game.StarterGui:SetCore("SendNotification", {Title = "Server Hop", Text = "กำลังย้ายไปเซิร์ฟเวอร์คนเยอะ...", Duration = 3})
-        TeleportService:TeleportToPlaceInstance(PlaceId, targetServer.id, game.Players.LocalPlayer)
     end
 })
 
 Tab_misc:Divider()
-
-Tab_misc:Button({
-    Title = "Claim All Quest",
-    Callback = function()
-        task.spawn(function()
-            local success, err = pcall(function()
-                local Players = game:GetService("Players")
-                local ReplicatedStorage = game:GetService("ReplicatedStorage")
-                local player = Players.LocalPlayer
-                local function findCounter()
-                    for _, obj in ipairs(getgc and getgc(true) or {}) do
-                        if typeof(obj) == "table" and rawget(obj, "event") and rawget(obj, "func") then
-                            return obj
-                        end
-                    end
-                    return nil
-                end
-                local CounterTable = findCounter()
-                if not CounterTable then return end
-                local Net = {}
-                function Net.get(...)
-                    local args = {...}
-                    CounterTable.func = (CounterTable.func or 0) + 1
-                    local GetRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
-                    return GetRemote:InvokeServer(CounterTable.func, table.unpack(args))
-                end
-                local questFrame = player:WaitForChild("PlayerGui"):WaitForChild("Quests"):WaitForChild("QuestsHolder"):WaitForChild("QuestsScrollingFrame")
-                for _, child in ipairs(questFrame:GetChildren()) do
-                    if child:IsA("Frame") or child:IsA("TextButton") or child:IsA("ImageButton") then
-                        Net.get("claim_quest", child.Name)
-                        task.wait(0.2)
-                    end
-                end
-            end)
-            if success then
-                print("Claim All Quests Completed")
-            else
-                warn(err)
+Tab_misc:Button({Title = "Claim All Quest", Callback = function()
+    task.spawn(function()
+        local function findCounter()
+            if not getgc then return nil end
+            for _, obj in ipairs(getgc(true)) do
+                if type(obj) == "table" and rawget(obj, "event") and rawget(obj, "func") then return obj end
             end
-        end)
-    end
-})
+            return nil
+        end
+        local ct = findCounter()
+        if not ct then return end
+        local GetRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Get")
+        local questFrame = LocalPlayer.PlayerGui.Quests.QuestsHolder.QuestsScrollingFrame
+        for _, child in ipairs(questFrame:GetChildren()) do
+            ct.func = (ct.func or 0) + 1
+            pcall(function() GetRemote:InvokeServer(ct.func, "claim_quest", child.Name) end)
+            task.wait(0.2)
+        end
+    end)
+end})
 
-Tab_misc:Button({
-    Title = "Boost FPS (ภาพกาก)",
-    Desc = "ลดคุณภาพภาพเพื่อเพิ่ม FPS",
-    Callback = function()
-        Bootsfps()
-        if WindUI then WindUI:Notify({Title = "✅ Boost FPS เปิดใช้งานแล้ว", Duration = 2}) end
-    end
-})
+Tab_misc:Button({Title = "Boost FPS (ภาพกาก)", Callback = function()
+    Bootsfps()
+    if WindUI then WindUI:Notify({Title = "✅ Boost FPS ON", Duration = 2}) end
+end})
 
 Tab_misc:Section({Title = "Config Management"})
+Tab_misc:Button({Title = "Save Config", Callback = function() if myConfig.Save then myConfig.Save(myConfig) end end})
+Tab_misc:Button({Title = "Delete Config", Callback = function() if myConfig.Delete then myConfig.Delete(myConfig) end end})
+if myConfig.Load then myConfig.Load(myConfig) end
 
-local saveFunc = myConfig["Save"]
-local deleteFunc = myConfig["Delete"]
-local loadFunc = myConfig["Load"]
-
-Tab_misc:Button({
-    Title = "Save Config",
-    Callback = function()
-        if saveFunc then saveFunc(myConfig) end
-    end
-})
-
-Tab_misc:Button({
-    Title = "Delete Config",
-    Callback = function()
-        if deleteFunc then deleteFunc(myConfig) end
-    end
-})
-
-if loadFunc then
-    loadFunc(myConfig)
-end
-
--- ========== ส่วน ESP ไอเทมบนพื้น ==========
+-- ============================================================
+-- ส่วน ESP ไอเทมบนพื้น (คงเดิม แต่ตัดให้สั้น)
+-- ============================================================
 function getRarityColor(item)
     if item.Name == "Money" then return Color3.fromRGB(0,255,0) end
     for _, folder in ipairs(ItemsFolder:GetChildren()) do
         if folder:IsA("Folder") then
             local tool = folder:FindFirstChild(item.Name)
             if tool and tool:GetAttribute("RarityName") then
-                local rarity = tool:GetAttribute("RarityName")
-                return RARITY_COLORS[rarity] or Color3.fromRGB(255,255,255)
+                return RARITY_COLORS[tool:GetAttribute("RarityName")] or Color3.fromRGB(255,255,255)
             end
         end
     end
@@ -2360,11 +2474,11 @@ end
 function cleanupItemDrawings()
     for item, d in pairs(item_drawings) do
         if not item or not item.Parent then
-            if d.circle then pcall(function() d.circle:Remove() end) end
-            if d.innerCircle then pcall(function() d.innerCircle:Remove() end) end
-            if d.name then pcall(function() d.name:Remove() end) end
-            if d.amount then pcall(function() d.amount:Remove() end) end
-            if d.highlight then pcall(function() d.highlight:Destroy() end) end
+            pcall(function() if d.circle then d.circle:Remove() end end)
+            pcall(function() if d.innerCircle then d.innerCircle:Remove() end end)
+            pcall(function() if d.name then d.name:Remove() end end)
+            pcall(function() if d.amount then d.amount:Remove() end end)
+            pcall(function() if d.highlight then d.highlight:Destroy() end end)
             item_drawings[item] = nil
         end
     end
@@ -2372,45 +2486,30 @@ end
 
 RunService.RenderStepped:Connect(function()
     cleanupItemDrawings()
-    if not groundItemsESPEnabled then
-        for _, d in pairs(item_drawings) do
-            if d.circle then d.circle.Visible = false end
-            if d.innerCircle then d.innerCircle.Visible = false end
-            if d.name then d.name.Visible = false end
-            if d.amount then d.amount.Visible = false end
-            if d.highlight then d.highlight.Enabled = false end
-        end
-        return
-    end
-    
+    if not groundItemsESPEnabled then return end
     if not droppedItems then return end
     local hrp = Client.Character and Client.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
-    
     for _, d in pairs(item_drawings) do
-        d.circle.Visible = false
-        d.innerCircle.Visible = false
-        d.name.Visible = false
-        d.amount.Visible = false
+        if d.circle then d.circle.Visible = false end
+        if d.innerCircle then d.innerCircle.Visible = false end
+        if d.name then d.name.Visible = false end
+        if d.amount then d.amount.Visible = false end
         if d.highlight then d.highlight.Enabled = false end
     end
-    
-    local nearbyItems = {}
+    local nearby = {}
     for _, item in ipairs(droppedItems:GetChildren()) do
         if item:IsA("Model") and item:FindFirstChild("PickUpZone") and not item:GetAttribute("Locked") then
-            local success, pos = pcall(function() return item.PickUpZone.Position end)
-            if success and pos then
-                local dist = (pos - hrp.Position).Magnitude
-                table.insert(nearbyItems, {item = item, dist = dist})
+            local pos = pcall(function() return item.PickUpZone.Position end) and item.PickUpZone.Position
+            if pos then
+                table.insert(nearby, {item=item, dist=(pos-hrp.Position).Magnitude})
             end
         end
     end
-    table.sort(nearbyItems, function(a,b) return a.dist < b.dist end)
-    
-    for i = 1, math.min(20, #nearbyItems) do
-        local item = nearbyItems[i].item
+    table.sort(nearby, function(a,b) return a.dist < b.dist end)
+    for i=1, math.min(20, #nearby) do
+        local item = nearby[i].item
         local d = item_drawings[item]
-        
         if not d then
             d = {
                 circle = Drawing.new("Circle"),
@@ -2418,71 +2517,27 @@ RunService.RenderStepped:Connect(function()
                 name = Drawing.new("Text"),
                 amount = Drawing.new("Text")
             }
-            d.circle.Thickness = 2
-            d.circle.Transparency = 0.7
-            d.circle.Filled = false
-            d.innerCircle.Thickness = 2
-            d.innerCircle.Transparency = 1
-            d.innerCircle.Filled = true
-            d.name.Outline = true
-            d.name.OutlineColor = Color3.fromRGB(0,0,0)
-            d.name.Center = true
-            d.name.Size = 16
-            d.name.Font = 4
-            d.amount.Outline = true
-            d.amount.OutlineColor = Color3.fromRGB(0,0,0)
-            d.amount.Center = true
-            d.amount.Size = 13
-            d.amount.Color = Color3.fromRGB(200,200,200)
+            d.circle.Thickness = 2; d.circle.Transparency = 0.7; d.circle.Filled = false
+            d.innerCircle.Thickness = 2; d.innerCircle.Transparency = 1; d.innerCircle.Filled = true
+            d.name.Outline = true; d.name.Center = true; d.name.Size = 16; d.name.Font = 4
+            d.amount.Outline = true; d.amount.Center = true; d.amount.Size = 13
             item_drawings[item] = d
         end
-        
         if not d.highlight or not d.highlight.Parent then
-            local highlight = Instance.new("Highlight")
-            highlight.Name = "ESP_Highlight"
-            highlight.FillTransparency = 0.5
-            highlight.OutlineTransparency = 0.1
-            highlight.Adornee = item
-            highlight.Parent = item
-            d.highlight = highlight
+            local h = Instance.new("Highlight"); h.FillTransparency = 0.5; h.OutlineTransparency = 0.1; h.Adornee = item; h.Parent = item; d.highlight = h
         end
-        
-        local rootPos, onScreen = Camera:WorldToViewportPoint(item.PickUpZone.Position)
-        if onScreen then
+        local pos, on = Camera:WorldToViewportPoint(item.PickUpZone.Position)
+        if on then
             local color = getRarityColor(item)
-            local radius = math.clamp(BOX_SIZE_SCALE / rootPos.Z, 3, 6)
-            
-            if d.highlight then
-                d.highlight.FillColor = color
-                d.highlight.OutlineColor = color
-                d.highlight.Enabled = true
-            end
-            
-            d.circle.Position = Vector2.new(rootPos.X, rootPos.Y)
-            d.circle.Radius = radius + 5
-            d.circle.Color = color
-            d.circle.Visible = true
-            
-            d.innerCircle.Position = Vector2.new(rootPos.X, rootPos.Y)
-            d.innerCircle.Radius = radius
-            d.innerCircle.Color = color
-            d.innerCircle.Visible = true
-            
-            d.name.Color = color
-            d.name.Position = Vector2.new(rootPos.X, rootPos.Y - radius - 20)
-            d.name.Text = item.Name
-            d.name.Visible = true
-            
-            local amount = item:GetAttribute("Amount") or 1
-            d.amount.Position = Vector2.new(rootPos.X, rootPos.Y + radius + 15)
-            d.amount.Text = amount > 1 and "[" .. tostring(amount) .. "]" or ""
-            d.amount.Visible = amount > 1
+            local rad = math.clamp(BOX_SIZE_SCALE / pos.Z, 3, 6)
+            d.highlight.FillColor = color; d.highlight.OutlineColor = color; d.highlight.Enabled = true
+            d.circle.Position = Vector2.new(pos.X, pos.Y); d.circle.Radius = rad+5; d.circle.Color = color; d.circle.Visible = true
+            d.innerCircle.Position = Vector2.new(pos.X, pos.Y); d.innerCircle.Radius = rad; d.innerCircle.Color = color; d.innerCircle.Visible = true
+            d.name.Position = Vector2.new(pos.X, pos.Y - rad - 20); d.name.Text = item.Name; d.name.Color = color; d.name.Visible = true
+            local amt = item:GetAttribute("Amount") or 1
+            d.amount.Position = Vector2.new(pos.X, pos.Y + rad + 15); d.amount.Text = amt>1 and "["..amt.."]" or ""; d.amount.Visible = amt>1
         else
-            d.circle.Visible = false
-            d.innerCircle.Visible = false
-            d.name.Visible = false
-            d.amount.Visible = false
-            if d.highlight then d.highlight.Enabled = false end
+            d.circle.Visible = false; d.innerCircle.Visible = false; d.name.Visible = false; d.amount.Visible = false; if d.highlight then d.highlight.Enabled = false end
         end
     end
 end)
@@ -2490,45 +2545,32 @@ end)
 Players.PlayerRemoving:Connect(function(plr)
     if plr == Client then
         for _, d in pairs(item_drawings) do
-            pcall(function() d.circle:Remove() end)
-            pcall(function() d.innerCircle:Remove() end)
-            pcall(function() d.name:Remove() end)
-            pcall(function() d.amount:Remove() end)
+            pcall(function() d.circle:Remove() end); pcall(function() d.innerCircle:Remove() end)
+            pcall(function() d.name:Remove() end); pcall(function() d.amount:Remove() end)
             pcall(function() if d.highlight then d.highlight:Destroy() end end)
         end
         item_drawings = {}
     end
 end)
 
--- ส่วน Bypass อื่น ๆ (lockTool, init, etc.)
+-- ส่วน Bypass อื่น ๆ (lockTool, init, hookEmotes, etc.) - คงเดิม
 function lockTool(tool)
-    if tool and tool:IsA("Tool") then
-        pcall(function() tool:SetAttribute("Locked", true) end)
-    end
+    if tool and tool:IsA("Tool") then pcall(function() tool:SetAttribute("Locked", true) end) end
 end
-
 function setupBackpack(backpack)
     if not backpack then return end
     for _, tool in ipairs(backpack:GetChildren()) do lockTool(tool) end
     backpack.ChildAdded:Connect(lockTool)
 end
-
 function init()
     local backpack = LocalPlayer:FindFirstChildOfClass("Backpack")
-    if backpack then
-        setupBackpack(backpack)
-    else
-        LocalPlayer.ChildAdded:Connect(function(child)
-            if child:IsA("Backpack") then setupBackpack(child) end
-        end)
-    end
+    if backpack then setupBackpack(backpack)
+    else LocalPlayer.ChildAdded:Connect(function(c) if c:IsA("Backpack") then setupBackpack(c) end end) end
 end
-
 init()
 LocalPlayer.CharacterAdded:Connect(function() task.wait(1); init() end)
 
 task.wait(1)
-print("Bypass hotbar inf")
 function hookButton(button)
     if not button then return end
     if button:FindFirstChild("UnlocksAtText") then button.UnlocksAtText.Visible = false end
@@ -2536,58 +2578,43 @@ function hookButton(button)
     CoreUI.on_click(button, function()
         local hum = CharModule.get_hum()
         if not hum or hum.Health <= 0 then return end
-        if EmotesUI.current_emote_playing.get() == button then
-            EmotesUI.current_emote_playing.set(nil)
-        else
-            EmotesUI.current_emote_playing.set(button)
-        end
+        if EmotesUI.current_emote_playing.get() == button then EmotesUI.current_emote_playing.set(nil)
+        else EmotesUI.current_emote_playing.set(button) end
         task.wait(0.12)
         EmotesUI.enabled.set(false)
     end)
     EmotesUI.current_emote_playing.hook(function(current)
-        if button:FindFirstChild("EmoteEquipped") then
-            button.EmoteEquipped.Visible = (current == button)
-        end
+        if button:FindFirstChild("EmoteEquipped") then button.EmoteEquipped.Visible = (current == button) end
     end)
 end
-
 function hookAllEmotes()
-    for index, emote in pairs(EmotesList) do
-        local button = CoreUI.get("EmoteTemplate").Parent:FindFirstChild(emote.name)
-        hookButton(button)
+    for _, emote in pairs(EmotesList) do
+        local btn = CoreUI.get("EmoteTemplate").Parent:FindFirstChild(emote.name)
+        hookButton(btn)
     end
 end
-
 hookAllEmotes()
 LocalPlayer.CharacterAdded:Connect(function() task.wait(1); hookAllEmotes() end)
 
 task.wait(2)
-
 local CurrentCamera = nil
 repeat task.wait() until workspace.CurrentCamera
 CurrentCamera = workspace.CurrentCamera
 
--- ส่วน bypass tween
 local _old_tween = Util.tween
-Util.tween = function(instance, tweenInfo, properties)
-    if instance and instance:IsA("NumberValue") and properties and properties.Value ~= nil then
-        instance.Value = properties.Value
+Util.tween = function(inst, info, props)
+    if inst and inst:IsA("NumberValue") and props and props.Value ~= nil then
+        inst.Value = props.Value
         return { Cancel = function() end }
     end
-    return _old_tween(instance, tweenInfo, properties)
+    return _old_tween(inst, info, props)
 end
 
 local success, sellBtn = pcall(function() return BuyPromptUI.get("SellPromptSellButton") end)
 if success and sellBtn then
     local hold = sellBtn:FindFirstChild("HoldStroke", true)
-    if hold then
-        hold.Enabled = false
-        local uiGrad = hold:FindFirstChildOfClass("UIGradient")
-        if uiGrad then uiGrad.Enabled = false end
-    end
-    for _, v in pairs(sellBtn:GetDescendants()) do
-        if v:IsA("NumberValue") then v.Value = 1 end
-    end
+    if hold then hold.Enabled = false end
+    for _, v in pairs(sellBtn:GetDescendants()) do if v:IsA("NumberValue") then v.Value = 1 end end
 end
 
 print("Bypass complete")
